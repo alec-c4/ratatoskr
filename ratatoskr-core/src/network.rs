@@ -92,10 +92,14 @@ pub async fn run_network_node(
                     println!("Client listening on {:?}", address);
                 },
                 SwarmEvent::Behaviour(RatatoskrBehaviorEvent::Mdns(mdns::Event::Discovered(list))) => {
-                    for (peer_id, _addr) in list {
-                        println!("Found peer via mDNS: {:?}", peer_id);
+                    for (peer_id, multiaddr) in list {
+                        println!("Found peer via mDNS: {:?} at {:?}", peer_id, multiaddr);
                         swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
+                        swarm.add_peer_address(peer_id, multiaddr); 
                     }
+                },
+                SwarmEvent::Behaviour(RatatoskrBehaviorEvent::Gossipsub(gossipsub::Event::Subscribed { peer_id, topic })) => {
+                    println!("Peer {:?} subscribed to {:?}", peer_id, topic);
                 },
                 _ => {}
             },

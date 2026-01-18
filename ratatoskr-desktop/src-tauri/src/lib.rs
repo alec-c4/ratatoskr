@@ -32,12 +32,27 @@ async fn get_identity(state: State<'_, AppState>) -> Result<Option<String>, Stri
 }
 
 #[tauri::command]
-async fn create_identity(state: State<'_, AppState>) -> Result<String, String> {
+async fn create_identity(state: State<'_, AppState>) -> Result<(String, String), String> {
     if state.identity_path.exists() {
         return Err("Identity already exists".into());
     }
     
-    let vault = KeyVault::generate();
+    let (vault, mnemonic) = KeyVault::generate_with_mnemonic();
+    vault.save_to_file(&state.identity_path)
+        .map_err(|e| e.to_string())?;
+    
+    Ok((vault.public_key_hex(), mnemonic))
+}
+
+#[tauri::command]
+async fn recover_identity(state: State<'_, AppState>, phrase: String) -> Result<String, String> {
+    if state.identity_path.exists() {
+        return Err("Identity already exists. Delete it first to recover.".into());
+    }
+
+    let vault = KeyVault::recover(&phrase)
+        .map_err(|e| format!("Invalid Mnemonic: {}", e))?;
+    
     vault.save_to_file(&state.identity_path)
         .map_err(|e| e.to_string())?;
     
@@ -140,7 +155,7 @@ pub fn run() {
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![ping, send_sos, get_identity, create_identity])
+        .invoke_handler(tauri::generate_handler![ping, send_sos, get_identity, create_identity, recover_identity])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -22,6 +22,12 @@
   let activeTab = $state("sos");
   let logs: string[] = $state([]);
   let userIdentity = $state<string | null>(null);
+  
+  // Registration State
+  let showRecovery = $state(false);
+  let recoveryPhrase = $state("");
+  let generatedMnemonic = $state("");
+  let copyFeedback = $state("");
 
   // Initialization
   $effect(() => {
@@ -50,11 +56,30 @@
 
   async function registerIdentity() {
     try {
-      userIdentity = await invoke("create_identity");
-      addLog(`Identity: Created new key ${userIdentity!.substring(0, 8)}...`);
+      const [pubKey, mnemonic] = await invoke<[string, string]>("create_identity");
+      userIdentity = pubKey;
+      generatedMnemonic = mnemonic;
+      addLog(`Identity: Created new key ${userIdentity.substring(0, 8)}...`);
     } catch (e) {
       addLog(`Registration Error: ${e}`);
     }
+  }
+
+  async function recoverIdentity() {
+    try {
+      const pubKey = await invoke<string>("recover_identity", { phrase: recoveryPhrase });
+      userIdentity = pubKey;
+      showRecovery = false;
+      addLog(`Identity: Recovered key ${userIdentity.substring(0, 8)}...`);
+    } catch (e) {
+      addLog(`Recovery Error: ${e}`);
+    }
+  }
+
+  function copyMnemonic() {
+     navigator.clipboard.writeText(generatedMnemonic);
+     copyFeedback = "Copied!";
+     setTimeout(() => copyFeedback = "", 2000);
   }
 
   async function checkCore() {
@@ -197,15 +222,48 @@
                   <span class="label">Public Key (Hex)</span>
                   <div class="key-box">{userIdentity}</div>
                   <p class="hint">This is your unique decentralized ID on the network.</p>
+                  
+                  {#if generatedMnemonic}
+                    <div class="mnemonic-alert">
+                      <strong>⚠️ SECRET RECOVERY PHRASE</strong>
+                      <p>Write this down immediately. It will not be shown again.</p>
+                      <button class="mnemonic-box" onclick={copyMnemonic} type="button">
+                        {generatedMnemonic}
+                      </button>
+                      <div class="copy-feedback">{copyFeedback}</div>
+                    </div>
+                  {/if}
                 </div>
               {:else}
-                <div class="no-identity">
-                  <p>You don't have an identity yet. You need one to use non-anonymous features.</p>
-                  <button class="primary-btn" onclick={registerIdentity}>
-                    <UserPlus size={18} />
-                    <span>Create New Identity</span>
-                  </button>
-                </div>
+                {#if !showRecovery}
+                  <div class="no-identity">
+                    <p>You don't have an identity yet.</p>
+                    <div class="auth-buttons">
+                      <button class="primary-btn" onclick={registerIdentity}>
+                        <UserPlus size={18} />
+                        <span>Create New Account</span>
+                      </button>
+                      <button class="secondary-btn" onclick={() => showRecovery = true}>
+                        <Fingerprint size={18} />
+                        <span>I have a Recovery Phrase</span>
+                      </button>
+                    </div>
+                  </div>
+                {:else}
+                  <div class="recovery-form">
+                    <h3>Recover Account</h3>
+                    <p>Enter your 12-word secret phrase below:</p>
+                    <textarea 
+                      bind:value={recoveryPhrase} 
+                      placeholder="witch collapse practice feed shame open despair creek road again ice least"
+                      rows="3"
+                    ></textarea>
+                    <div class="auth-buttons">
+                      <button class="primary-btn" onclick={recoverIdentity}>Recover</button>
+                      <button class="secondary-btn" onclick={() => showRecovery = false}>Cancel</button>
+                    </div>
+                  </div>
+                {/if}
               {/if}
             </div>
           </div>
@@ -528,5 +586,76 @@
   .primary-btn:hover {
     background-color: #2ecc71;
     border-color: transparent;
+  }
+
+  .auth-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 20px;
+  }
+
+  .secondary-btn {
+    background-color: transparent;
+    border: 1px solid #444;
+    color: #aaa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 12px 24px;
+    cursor: pointer;
+  }
+  
+  .secondary-btn:hover {
+    border-color: #888;
+    color: #fff;
+  }
+
+  .mnemonic-alert {
+    background-color: #2c1e00;
+    border: 1px solid #f39c12;
+    padding: 15px;
+    border-radius: 8px;
+    margin-top: 20px;
+    color: #f39c12;
+  }
+
+  .mnemonic-box {
+    background-color: #000;
+    padding: 15px;
+    font-family: monospace;
+    font-size: 14px;
+    color: #fff;
+    border: 1px dashed #f39c12;
+    margin-top: 10px;
+    cursor: pointer;
+    line-height: 1.5;
+    width: 100%;
+    text-align: left;
+    display: block;
+  }
+  
+  .mnemonic-box:hover {
+    background-color: #111;
+  }
+  
+  .copy-feedback {
+    font-size: 10px;
+    text-align: right;
+    margin-top: 4px;
+    height: 12px;
+  }
+
+  textarea {
+    width: 100%;
+    background: #000;
+    border: 1px solid #333;
+    color: white;
+    padding: 10px;
+    border-radius: 6px;
+    resize: none;
+    font-family: monospace;
+    margin-top: 10px;
   }
 </style>
