@@ -1,0 +1,20 @@
+# Rust / Cargo
+/target
+/ratatoskr-core/target
+/ratatoskr-server/target
+/ratatoskr-desktop/src-tauri/target
+**/*.rs.bk
+Cargo.lock
+
+# Node / JS
+node_modules/
+/ratatoskr-desktop/node_modules
+/ratatoskr-desktop/build
+/ratatoskr-desktop/.svelte-kit
+.DS_Store
+.env
+.env.*
+
+# Tauri
+/ratatoskr-desktop/src-tauri/gen/android
+/ratatoskr-desktop/src-tauri/gen/schemas

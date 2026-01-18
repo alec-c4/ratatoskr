@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "ratatoskr-core",
+    "ratatoskr-server",
+    "ratatoskr-desktop/src-tauri"
+]
+resolver = "2"
