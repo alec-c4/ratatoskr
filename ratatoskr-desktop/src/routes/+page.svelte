@@ -273,7 +273,7 @@
               <span>SECURE LOG</span>
             </div>
             <div class="logs">
-              {#each logs as log}
+              {#each logs as log (log)}
                 <div class="log-line">{log}</div>
               {/each}
               {#if logs.length === 0}
