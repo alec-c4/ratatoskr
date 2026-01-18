@@ -8,6 +8,7 @@ use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tauri::{State, Manager};
 use std::path::PathBuf;
+use std::fs;
 
 // Application State: Stores the communication channel with the network thread
 struct AppState {
@@ -57,6 +58,41 @@ async fn recover_identity(state: State<'_, AppState>, phrase: String) -> Result<
         .map_err(|e| e.to_string())?;
     
     Ok(vault.public_key_hex())
+}
+
+#[tauri::command]
+async fn delete_identity(state: State<'_, AppState>) -> Result<(), String> {
+    println!("DEBUG: Attempting to delete identity at {:?}", state.identity_path);
+    if state.identity_path.exists() {
+        fs::remove_file(&state.identity_path)
+            .map_err(|e| {
+                let err_msg = format!("Failed to delete key: {}", e);
+                println!("DEBUG: {}", err_msg);
+                err_msg
+            })?;
+        println!("DEBUG: Identity deleted successfully.");
+    } else {
+        println!("DEBUG: File does not exist, nothing to delete.");
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn export_backup(app_handle: tauri::AppHandle, content: String) -> Result<String, String> {
+    // use tauri::path::BaseDirectory; // Removed unused import
+    
+    let download_dir = app_handle.path().download_dir()
+        .map_err(|e| format!("Failed to resolve download dir: {}", e))?;
+    
+    let filename = format!("ratatoskr_backup_{}.txt", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs());
+    let path = download_dir.join(filename);
+    
+    println!("DEBUG: Exporting backup to {:?}", path);
+    
+    fs::write(&path, content)
+        .map_err(|e| format!("Failed to write backup: {}", e))?;
+        
+    Ok(path.to_string_lossy().to_string())
 }
 
 #[tauri::command]
@@ -112,7 +148,7 @@ pub fn run() {
         .setup(move |app| {
             let app_handle = app.handle();
             let config_dir = app_handle.path().app_config_dir().expect("Failed to get config dir");
-            std::fs::create_dir_all(&config_dir).expect("Failed to create config dir");
+            fs::create_dir_all(&config_dir).expect("Failed to create config dir");
             let identity_path = config_dir.join("identity.key");
 
             app.manage(AppState { 
@@ -155,7 +191,7 @@ pub fn run() {
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![ping, send_sos, get_identity, create_identity, recover_identity])
+        .invoke_handler(tauri::generate_handler![ping, send_sos, get_identity, create_identity, recover_identity, delete_identity, export_backup])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

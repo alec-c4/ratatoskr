@@ -13,8 +13,13 @@
     Menu,
     Terminal,
     Fingerprint,
-    UserPlus
+    UserPlus,
+    Download,
+    Trash2,
+    LogOut,
+    LogIn
   } from "lucide-svelte";
+  import { onMount } from "svelte";
 
   // State
   let coreStatus = $state("Initializing...");
@@ -22,6 +27,7 @@
   let activeTab = $state("sos");
   let logs: string[] = $state([]);
   let userIdentity = $state<string | null>(null);
+  let accountCreated = $state(false);
   
   // Registration State
   let showRecovery = $state(false);
@@ -30,7 +36,7 @@
   let copyFeedback = $state("");
 
   // Initialization
-  $effect(() => {
+  onMount(() => {
     checkCore();
     loadIdentity();
     // Simulate finding peers for UI demo
@@ -42,22 +48,32 @@
 
   async function loadIdentity() {
     try {
-      userIdentity = await invoke("get_identity");
-      if (userIdentity) {
-        addLog(`Identity: Found active key ${userIdentity.substring(0, 8)}...`);
+      const id = await invoke<string | null>("get_identity");
+      if (id) {
+        userIdentity = id;
+        accountCreated = true;
+        addLog(`Identity: Loaded key ${id.substring(0, 8)}...`);
       } else {
-        addLog("Identity: No identity found. Please register.");
-        activeTab = "settings"; // Suggest going to settings/registration
+        userIdentity = null;
+        accountCreated = false;
+        addLog("Identity: No identity found.");
       }
     } catch (e) {
       addLog(`Identity Error: ${e}`);
     }
   }
 
+  async function logout() {
+    userIdentity = null;
+    activeTab = "sos"; // Will show overlay
+    addLog("System: Logged out.");
+  }
+
   async function registerIdentity() {
     try {
       const [pubKey, mnemonic] = await invoke<[string, string]>("create_identity");
       userIdentity = pubKey;
+      accountCreated = true;
       generatedMnemonic = mnemonic;
       addLog(`Identity: Created new key ${userIdentity.substring(0, 8)}...`);
     } catch (e) {
@@ -69,10 +85,50 @@
     try {
       const pubKey = await invoke<string>("recover_identity", { phrase: recoveryPhrase });
       userIdentity = pubKey;
+      accountCreated = true;
       showRecovery = false;
       addLog(`Identity: Recovered key ${userIdentity.substring(0, 8)}...`);
     } catch (e) {
       addLog(`Recovery Error: ${e}`);
+    }
+  }
+
+  async function panicWipe() {
+    console.log("Panic Wipe triggered");
+    // Removed confirm for debugging purposes - click destroys immediately
+    try {
+        await invoke("delete_identity");
+        console.log("Identity deleted via Rust");
+        userIdentity = null;
+        accountCreated = false;
+        generatedMnemonic = "";
+        window.location.reload();
+    } catch (e) {
+        console.error("Wipe Error:", e);
+        addLog(`Wipe Error: ${e}`);
+    }
+  }
+
+  async function exportPublicKey() {
+    if (!userIdentity) return;
+    const content = `Ratatoskr Public Key (DID):\n\n${userIdentity}`;
+    try {
+        const path = await invoke<string>("export_backup", { content });
+        alert(`Saved to: ${path}`);
+    } catch (e) {
+        alert(`Error: ${e}`);
+    }
+  }
+
+  async function downloadBackup() {
+    const content = `Ratatoskr Recovery Phrase:\n\n${generatedMnemonic}\n\nKEEP THIS SECRET!`;
+    try {
+        const path = await invoke<string>("export_backup", { content });
+        addLog(`System: Backup saved to ${path}`);
+        copyFeedback = "Saved to Downloads!";
+    } catch (e) {
+        addLog(`Backup Error: ${e}`);
+        copyFeedback = "Save Failed";
     }
   }
 
@@ -157,7 +213,27 @@
 
     <!-- CONTENT AREA -->
     <div class="content-scroll">
-      {#if activeTab === 'sos'}
+      {#if !userIdentity && activeTab !== 'settings'}
+        <div class="welcome-overlay">
+            <Radio size={64} color="#27ae60" />
+            <h2>Welcome to Ratatoskr</h2>
+            
+            {#if accountCreated}
+                <p>Identity found on this device.</p>
+                <div class="auth-buttons">
+                    <button class="primary-btn" onclick={loadIdentity}>
+                        <LogIn size={18} />
+                        <span>Log In</span>
+                    </button>
+                </div>
+            {:else}
+                <p>To start communicating securely, you need to create an identity.</p>
+                <div class="auth-buttons">
+                    <button class="primary-btn" onclick={() => activeTab = 'settings'}>Get Started</button>
+                </div>
+            {/if}
+        </div>
+      {:else if activeTab === 'sos'}
         <div class="sos-container">
           <div class="warning-header">
             <ShieldAlert size={48} color="#e74c3c" />
@@ -223,6 +299,10 @@
                   <div class="key-box">{userIdentity}</div>
                   <p class="hint">This is your unique decentralized ID on the network.</p>
                   
+                  <button class="secondary-btn" onclick={exportPublicKey} style="width: 100%; margin-top: 10px;">
+                    <Download size={14} /> <span>Export Public Key to File</span>
+                  </button>
+
                   {#if generatedMnemonic}
                     <div class="mnemonic-alert">
                       <strong>⚠️ SECRET RECOVERY PHRASE</strong>
@@ -230,7 +310,12 @@
                       <button class="mnemonic-box" onclick={copyMnemonic} type="button">
                         {generatedMnemonic}
                       </button>
-                      <div class="copy-feedback">{copyFeedback}</div>
+                      <div class="mnemonic-actions">
+                        <button class="download-btn" onclick={downloadBackup}>
+                            <Download size={16} /> <span>Save Backup File</span>
+                        </button>
+                        <span class="copy-feedback">{copyFeedback}</span>
+                      </div>
                     </div>
                   {/if}
                 </div>
@@ -274,6 +359,23 @@
               <span>App Preferences</span>
             </div>
             <p class="opacity-50">More settings coming soon...</p>
+            {#if userIdentity}
+                <button class="secondary-btn" style="width: 100%; margin-top: 10px;" onclick={logout}>
+                    <LogOut size={16} /> <span>Log Out</span>
+                </button>
+            {/if}
+          </div>
+
+          <div class="settings-section danger-zone">
+             <div class="section-header danger">
+              <ShieldAlert size={20} />
+              <span>Danger Zone</span>
+            </div>
+            <p>Destructive actions. Use with extreme caution.</p>
+            <button class="panic-btn" onclick={panicWipe}>
+                <Trash2 size={18} />
+                <span>Panic Wipe: Destroy Identity</span>
+            </button>
           </div>
         </div>
       {:else}
@@ -506,6 +608,21 @@
     color: #444;
   }
 
+  .welcome-overlay {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    text-align: center;
+    animation: fadeIn 0.5s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
   /* SETTINGS & IDENTITY */
   .settings-view {
     max-width: 600px;
@@ -642,9 +759,60 @@
   
   .copy-feedback {
     font-size: 10px;
-    text-align: right;
-    margin-top: 4px;
-    height: 12px;
+    color: #27ae60;
+  }
+
+  .mnemonic-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+  }
+
+  .download-btn {
+    background: #27ae60;
+    color: #fff;
+    font-size: 12px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+
+  .download-btn:hover {
+    background: #2ecc71;
+  }
+
+  .danger-zone {
+    border-color: #441111;
+    background-color: #1a0a0a;
+  }
+
+  .section-header.danger {
+    color: #e74c3c;
+    border-color: #441111;
+  }
+
+  .panic-btn {
+    background-color: #e74c3c;
+    color: white;
+    width: 100%;
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 12px;
+    font-weight: bold;
+    border: none;
+  }
+
+  .panic-btn:hover {
+    background-color: #c0392b;
   }
 
   textarea {

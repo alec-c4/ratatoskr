@@ -29,6 +29,8 @@ Goal: Allow users to exist independently of any server.
 - [x] **Registration flow**
     - [x] Generate a unique "Ratatoskr ID" (e.g., `did:rat:zABC...`).
     - [x] Implement "First Run" wizard in UI (Create Account / Import Seed).
+    - [x] Implement Mnemonic recovery (BIP-39).
+    - [x] Add secure backup export (.txt).
 - [ ] **Routing**
     - [ ] Implement DHT (Kademlia) for finding peers by ID.
     - [ ] Allow publishing "Mailbox" addresses to the DHT/Network.
