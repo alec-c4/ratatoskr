@@ -1,0 +1,48 @@
+[tools]
+node = "20"
+rust = "latest"
+
+[tasks.install]
+description = "Install all dependencies (Rust & Node.js)"
+run = [
+  "npm install",
+  "npm install --prefix ratatoskr-desktop",
+  "cargo fetch"
+]
+
+[tasks.dev]
+description = "Run Relay Server and Desktop Client concurrently"
+run = [
+  "cargo run -p ratatoskr-server &",
+  "npm run tauri dev --prefix ratatoskr-desktop"
+]
+# Wait for user interrupt (Ctrl+C) to kill both processes
+wait_for = ["cargo run -p ratatoskr-server", "npm run tauri dev --prefix ratatoskr-desktop"]
+
+[tasks.server]
+description = "Run Relay Server only"
+run = "cargo run -p ratatoskr-server"
+
+[tasks.desktop]
+description = "Run Desktop Client only"
+run = "npm run tauri dev --prefix ratatoskr-desktop"
+
+[tasks.build]
+description = "Build release binaries"
+run = [
+  "cargo build --release",
+  "npm run tauri build --prefix ratatoskr-desktop"
+]
+
+[tasks.lint]
+description = "Run all linters and checks"
+run = [
+  "cargo fmt --check",
+  "cargo clippy --workspace -- -D warnings",
+  "npm run check --prefix ratatoskr-desktop",
+  "npx eslint ratatoskr-desktop"
+]
+
+[tasks.test]
+description = "Run all tests"
+run = "cargo test --workspace"
