@@ -84,7 +84,26 @@ We use a **Web of Trust (WoT)** model anchored by Organizations.
 
 ---
 
-## 5. Storage Layer (User Device)
+## 6. Censorship Circumvention & Stealth
+
+To operate in hostile network environments (DPI, Firewalls), Ratatoskr implements a multi-layered transport strategy:
+
+### A. Protocol Obfuscation
+- **Standard Mode:** TCP/QUIC + Noise (High performance, easily detectable).
+- **Stealth Mode (Proposed):**
+  - **WebSocket + TLS:** Traffic mimics standard HTTPS web browsing (`443` port).
+  - **Packet Padding:** Randomizing packet sizes to defeat statistical analysis.
+  - **Pluggable Transports:** Future support for Tor bridges or Shadowsocks-like obfuscation.
+
+### B. Discovery without Multicast
+- In restricted networks where mDNS is blocked:
+  - **Bootstrap Nodes:** Hardcoded list of trusted entry points (rotatable via DNS TXT records or IPFS).
+  - **DHT Random Walk:** Aggressive DHT crawling to find new peers once connected to at least one node.
+  - **Manual Peering:** Users can scan a QR code from another device to establish a direct connection (add peer by Multiaddr).
+
+---
+
+## 7. Storage Layer (User Device)
 
 - **Engine:** SQLite (via SQLx).
 - **Encryption:** SQLCipher or Application-level AES-GCM encryption of database rows.

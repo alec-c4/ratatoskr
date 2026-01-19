@@ -6,6 +6,6 @@ edition = "2021"
 [dependencies]
 ratatoskr-core = { path = "../ratatoskr-core" }
 tokio = { version = "1.36", features = ["full"] }
-libp2p = { version = "0.53", features = ["tokio", "gossipsub", "mdns", "noise", "yamux", "tcp", "dns", "websocket", "macros"] }
+libp2p = { version = "0.53", features = ["tokio", "gossipsub", "mdns", "noise", "yamux", "tcp", "dns", "websocket", "macros", "kad"] }
 env_logger = "0.11"
 log = "0.4"

@@ -1,20 +1,22 @@
-use libp2p::{
-    gossipsub, mdns, noise, swarm::NetworkBehaviour, yamux, Swarm, SwarmBuilder, Multiaddr
-};
+use libp2p::futures::StreamExt;
 use libp2p::identity::Keypair;
+use libp2p::swarm::SwarmEvent;
+use libp2p::{
+    gossipsub, kad, mdns, noise, swarm::NetworkBehaviour, yamux, Multiaddr, Swarm, SwarmBuilder,
+};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
 use tokio::io;
 use tokio::sync::mpsc;
-use libp2p::futures::StreamExt;
-use libp2p::swarm::SwarmEvent;
 
 // Commands that the UI can send to the Network
 #[derive(Debug)]
 pub enum NetworkCommand {
-    BroadcastSos(Vec<u8>), // Broadcast an encrypted SOS packet
-    Dial(Multiaddr),       // Connect to a specific peer manually
+    BroadcastSos(Vec<u8>),  // Broadcast an encrypted SOS packet
+    Dial(Multiaddr),        // Connect to a specific peer manually
+    StartProviding(String), // Announce our ID to the DHT
+    FindPeer(String),       // Find peer address by ID
 }
 
 // Network behavior
@@ -22,6 +24,7 @@ pub enum NetworkCommand {
 pub struct RatatoskrBehavior {
     pub gossipsub: gossipsub::Behaviour,
     pub mdns: mdns::tokio::Behaviour,
+    pub kademlia: kad::Behaviour<kad::store::MemoryStore>,
 }
 
 pub async fn build_swarm(
@@ -50,21 +53,27 @@ pub async fn build_swarm(
                 .validation_mode(gossipsub::ValidationMode::Strict)
                 .message_id_fn(message_id_fn)
                 .build()
-                .map_err(|msg| io::Error::new(io::ErrorKind::Other, msg))?;
+                .map_err(io::Error::other)?;
 
             let gossipsub = gossipsub::Behaviour::new(
                 gossipsub::MessageAuthenticity::Signed(key.clone()),
                 gossipsub_config,
             )
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?; 
+            .map_err(io::Error::other)?;
 
             // mDNS Config
-            let mdns = mdns::tokio::Behaviour::new(
-                mdns::Config::default(), 
-                key.public().to_peer_id()
-            )?;
+            let mdns =
+                mdns::tokio::Behaviour::new(mdns::Config::default(), key.public().to_peer_id())?;
 
-            Ok(RatatoskrBehavior { gossipsub, mdns })
+            // Kademlia DHT Config
+            let store = kad::store::MemoryStore::new(key.public().to_peer_id());
+            let kademlia = kad::Behaviour::new(key.public().to_peer_id(), store);
+
+            Ok(RatatoskrBehavior {
+                gossipsub,
+                mdns,
+                kademlia,
+            })
         })?
         .build();
 
@@ -76,10 +85,15 @@ pub async fn run_network_node(
     mut swarm: Swarm<RatatoskrBehavior>,
     mut command_receiver: mpsc::Receiver<NetworkCommand>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    
     // Subscribe to the SOS channel
     let sos_topic = gossipsub::IdentTopic::new("ratatoskr-sos");
     swarm.behaviour_mut().gossipsub.subscribe(&sos_topic)?;
+
+    // Set Kademlia to Server mode (auto-update routing table)
+    swarm
+        .behaviour_mut()
+        .kademlia
+        .set_mode(Some(kad::Mode::Server));
 
     // Listen on any available port
     swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
@@ -95,8 +109,14 @@ pub async fn run_network_node(
                     for (peer_id, multiaddr) in list {
                         println!("Found peer via mDNS: {:?} at {:?}", peer_id, multiaddr);
                         swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
-                        swarm.add_peer_address(peer_id, multiaddr); 
+                        swarm.behaviour_mut().kademlia.add_address(&peer_id, multiaddr); // Add to DHT bucket
                     }
+                },
+                SwarmEvent::Behaviour(RatatoskrBehaviorEvent::Kademlia(kad::Event::OutboundQueryProgressed {
+                    result: kad::QueryResult::GetProviders(Ok(kad::GetProvidersOk::FoundProviders { providers, key, .. })),
+                    ..
+                })) => {
+                    println!("DHT: Found providers for key {:?}: {:?}", key, providers);
                 },
                 SwarmEvent::Behaviour(RatatoskrBehaviorEvent::Gossipsub(gossipsub::Event::Subscribed { peer_id, topic })) => {
                     println!("Peer {:?} subscribed to {:?}", peer_id, topic);
@@ -118,6 +138,18 @@ pub async fn run_network_node(
                         println!("Dial error: {:?}", e);
                     }
                 },
+                Some(NetworkCommand::StartProviding(key_str)) => {
+                    let key = kad::RecordKey::new(&key_str);
+                    println!("DHT: Announcing provider for key: {}", key_str);
+                    if let Err(e) = swarm.behaviour_mut().kademlia.start_providing(key) {
+                         println!("DHT Provide Error: {:?}", e);
+                    }
+                },
+                Some(NetworkCommand::FindPeer(key_str)) => {
+                    let key = kad::RecordKey::new(&key_str);
+                    println!("DHT: Searching for key: {}", key_str);
+                    swarm.behaviour_mut().kademlia.get_providers(key);
+                }
                 None => break, // Channel closed, exiting
             }
         }

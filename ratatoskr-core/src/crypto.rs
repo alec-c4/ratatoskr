@@ -1,11 +1,12 @@
+use crate::models::{EncryptedSosPacket, SosPayload};
 use aes_gcm::{
     aead::{Aead, KeyInit, OsRng},
-    Aes256Gcm, Nonce // Or `Key`
+    Aes256Gcm,
+    Nonce, // Or `Key`
 };
-use x25519_dalek::{EphemeralSecret, PublicKey};
-use sha2::{Sha256, Digest};
-use crate::models::{SosPayload, EncryptedSosPacket};
 use rand::RngCore;
+use sha2::{Digest, Sha256};
+use x25519_dalek::{EphemeralSecret, PublicKey};
 
 // Keypair generation (placeholder from previous step, can be kept or expanded)
 pub fn generate_keypair() -> (Vec<u8>, Vec<u8>) {
@@ -16,9 +17,8 @@ pub fn generate_keypair() -> (Vec<u8>, Vec<u8>) {
 /// Sender Ephemeral Priv + Receiver Static Pub -> Shared Secret -> AES Key
 pub fn encrypt_sos_signal(
     payload: &SosPayload,
-    trusted_public_key_bytes: &[u8; 32]
+    trusted_public_key_bytes: &[u8; 32],
 ) -> Result<EncryptedSosPacket, Box<dyn std::error::Error + Send + Sync>> {
-    
     // 1. Generate a one-time (ephemeral) key for this specific transmission
     let sender_secret = EphemeralSecret::random_from_rng(OsRng);
     let sender_public = PublicKey::from(&sender_secret);
@@ -43,7 +43,8 @@ pub fn encrypt_sos_signal(
     let nonce = Nonce::from_slice(&nonce_bytes);
 
     let plaintext = serde_json::to_vec(payload)?;
-    let ciphertext = cipher.encrypt(nonce, plaintext.as_ref())
+    let ciphertext = cipher
+        .encrypt(nonce, plaintext.as_ref())
         .map_err(|e| format!("Encryption failure: {}", e))?;
 
     // 6. Form the packet

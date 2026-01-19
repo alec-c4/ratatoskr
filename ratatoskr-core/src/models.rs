@@ -1,12 +1,12 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum SosType {
-    Medical,      // Medical assistance needed
-    Evacuation,   // Evacuation needed
-    FoodWater,    // Food/Water
-    Shelter,      // Shelter
-    Violence,     // Threat of violence/shelling
+    Medical,    // Medical assistance needed
+    Evacuation, // Evacuation needed
+    FoodWater,  // Food/Water
+    Shelter,    // Shelter
+    Violence,   // Threat of violence/shelling
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

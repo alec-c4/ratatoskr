@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Role {
@@ -11,11 +11,11 @@ pub enum Role {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct VolunteerCredential {
-    pub volunteer_did: String,     // ID волонтера (Public Key)
-    pub organization_did: String,  // ID организации, выдавшей сертификат
+    pub volunteer_did: String,    // ID волонтера (Public Key)
+    pub organization_did: String, // ID организации, выдавшей сертификат
     pub role: Role,
     pub valid_until: u64,
-    pub signature: Vec<u8>,        // Подпись организации
+    pub signature: Vec<u8>, // Подпись организации
 }
 
 // Заявка на волонтерство
