@@ -41,6 +41,11 @@
   let newContactDid = $state("");
   let newContactAlias = $state("");
 
+  // Chat State
+  let selectedContact = $state<[string, string | null] | null>(null);
+  let chatMessages = $state<any[]>([]); // eslint-disable-line
+  let newMessage = $state("");
+
   // Initialization
   onMount(() => {
     checkCore();
@@ -52,6 +57,30 @@
     }, 2000);
     return () => clearInterval(interval);
   });
+
+  async function loadMessages(did: string) {
+    try {
+        chatMessages = await invoke("get_messages", { did });
+    } catch (e) {
+        addLog(`Messages Error: ${e}`);
+    }
+  }
+
+  async function sendMessage() { // eslint-disable-line
+    if (!selectedContact || !newMessage) return;
+    try {
+        await invoke("send_message", { recipientDid: selectedContact[0], content: newMessage });
+        await loadMessages(selectedContact[0]);
+        newMessage = "";
+    } catch (e) {
+        addLog(`Send Error: ${e}`);
+    }
+  }
+
+  async function selectChat(contact: [string, string | null]) { // eslint-disable-line
+    selectedContact = contact;
+    await loadMessages(contact[0]);
+  }
 
   async function loadContacts() {
     try {
@@ -766,6 +795,124 @@
     color: #555;
     padding: 40px;
   }
+
+  /* CHAT LAYOUT */
+  .chat-layout {
+    display: flex;
+    height: 100%;
+    margin: -20px; /* Counter container padding */
+  }
+
+  .chat-sidebar {
+    width: 260px;
+    background: #111;
+    border-right: 1px solid #222;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .chat-list {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .chat-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 15px;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid #222;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .chat-item:hover { background: #1a1a1a; }
+  .chat-item.active { background: #1a1a1a; border-left: 3px solid #27ae60; }
+
+  .chat-item .name { font-size: 14px; font-weight: bold; color: #fff; }
+  .chat-item .last-msg { font-size: 11px; color: #666; }
+
+  .chat-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #121212;
+  }
+
+  .chat-header {
+    height: 60px;
+    border-bottom: 1px solid #222;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 15px;
+    background: #0a0a0a;
+  }
+
+  .did-badge {
+    font-size: 10px;
+    background: #222;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #666;
+    font-family: monospace;
+  }
+
+  .message-area {
+    flex: 1;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+  }
+
+  .msg-bubble {
+    max-width: 70%;
+    padding: 10px 15px;
+    background: #222;
+    border-radius: 12px 12px 12px 2px;
+    align-self: flex-start;
+    font-size: 14px;
+    position: relative;
+  }
+
+  .msg-bubble.own {
+    background: #27ae60;
+    color: #fff;
+    align-self: flex-end;
+    border-radius: 12px 12px 2px 12px;
+  }
+
+  .time {
+    font-size: 9px;
+    opacity: 0.6;
+    margin-top: 5px;
+    text-align: right;
+  }
+
+  .input-area {
+    padding: 20px;
+    background: #0a0a0a;
+    display: flex;
+    gap: 10px;
+    border-top: 1px solid #222;
+  }
+
+  .input-area input {
+    flex: 1;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    color: #fff;
+    padding: 10px 15px;
+    border-radius: 20px;
+  }
+
+  .avatar.small { width: 32px; height: 32px; font-size: 12px; }
 
   /* SETTINGS & IDENTITY */
   .settings-view {

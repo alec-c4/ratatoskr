@@ -62,4 +62,51 @@ impl Storage {
             .map(|r| (r.get("did"), r.get("alias")))
             .collect())
     }
+
+    pub async fn save_message(&self, msg: &crate::models::ChatMessage) -> Result<(), StorageError> {
+        let status = serde_json::to_string(&msg.status).unwrap();
+
+        sqlx::query(
+            "INSERT INTO messages (id, sender_did, content, timestamp, status) VALUES (?, ?, ?, ?, ?)"
+        )
+        .bind(&msg.id)
+        .bind(&msg.sender_did)
+        .bind(&msg.content)
+        .bind(msg.timestamp as i64)
+        .bind(status) // We store status as JSON string or integer, for now string is easier
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn list_messages(
+        &self,
+        contact_did: &str,
+    ) -> Result<Vec<crate::models::ChatMessage>, StorageError> {
+        use sqlx::Row;
+        // In a real app we'd need a more complex query to handle all Message fields
+        let recs =
+            sqlx::query("SELECT * FROM messages WHERE sender_did = ? ORDER BY timestamp ASC")
+                .bind(contact_did)
+                .fetch_all(&self.pool)
+                .await?;
+
+        // Mapping logic (simplified for prototype)
+        Ok(recs
+            .into_iter()
+            .map(|r| {
+                crate::models::ChatMessage {
+                    id: r.get("id"),
+                    sender_did: r.get("sender_did"),
+                    recipient_did: "me".to_string(), // Simplified
+                    msg_type: crate::models::MessageType::Direct,
+                    status: crate::models::MessageStatus::Done,
+                    content: r.get("content"),
+                    timestamp: r.get::<i64, _>("timestamp") as u64,
+                    ttl: None,
+                    schema_id: "raw".to_string(),
+                }
+            })
+            .collect())
+    }
 }

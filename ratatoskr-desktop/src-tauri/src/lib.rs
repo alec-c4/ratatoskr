@@ -25,6 +25,60 @@ fn ping() -> String {
 }
 
 #[tauri::command]
+async fn get_messages(
+    state: State<'_, AppState>,
+    did: String,
+) -> Result<Vec<ratatoskr_core::models::ChatMessage>, String> {
+    state
+        .storage
+        .list_messages(&did)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn send_message(
+    state: State<'_, AppState>,
+    recipient_did: String,
+    content: String,
+) -> Result<(), String> {
+    use ratatoskr_core::models::{ChatMessage, MessageStatus, MessageType};
+
+    // 1. Create message object
+    let msg = ChatMessage {
+        id: uuid::Uuid::new_v4().to_string(),
+        sender_did: "me".to_string(), // In real app: our actual DID
+        recipient_did,
+        msg_type: MessageType::Direct,
+        status: MessageStatus::Unread,
+        content: content.into_bytes(), // UNENCRYPTED for initial test (to be fixed next)
+        timestamp: SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs(),
+        ttl: None,
+        schema_id: "text".to_string(),
+    };
+
+    // 2. Save to local DB
+    state
+        .storage
+        .save_message(&msg)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // 3. Send to Network (GossipSub for now)
+    let packet_bytes = serde_json::to_vec(&msg).unwrap();
+    let sender = state.network_sender.lock().await;
+    sender
+        .send(NetworkCommand::BroadcastSos(packet_bytes))
+        .await // Reuse broadcast for now
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
 async fn add_contact(state: State<'_, AppState>, did: String, alias: String) -> Result<(), String> {
     state
         .storage
@@ -255,7 +309,9 @@ pub fn run() {
             delete_identity,
             export_backup,
             add_contact,
-            get_contacts
+            get_contacts,
+            get_messages,
+            send_message
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

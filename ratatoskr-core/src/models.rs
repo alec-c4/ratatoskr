@@ -33,6 +33,34 @@ pub struct EncryptedSosPacket {
     pub ciphertext: Vec<u8>,           // Encrypted SosPayload
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum MessageType {
+    Direct,        // Standard human-to-human
+    Ephemeral,     // Self-destructs after TTL
+    Transactional, // Receipts, OTPs (auto-archive)
+    Feed,          // News, logs (no notifications)
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum MessageStatus {
+    Unread,
+    ActionRequired,
+    Done,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ChatMessage {
+    pub id: String,
+    pub sender_did: String,
+    pub recipient_did: String,
+    pub msg_type: MessageType,
+    pub status: MessageStatus,
+    pub content: Vec<u8>, // Encrypted blob
+    pub timestamp: u64,
+    pub ttl: Option<u64>,  // Optional expiry timestamp
+    pub schema_id: String, // For protocol extensibility
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Message {
     pub sender: String,

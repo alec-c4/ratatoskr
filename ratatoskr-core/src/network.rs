@@ -109,7 +109,9 @@ pub async fn run_network_node(
                     for (peer_id, multiaddr) in list {
                         println!("Found peer via mDNS: {:?} at {:?}", peer_id, multiaddr);
                         swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
-                        swarm.behaviour_mut().kademlia.add_address(&peer_id, multiaddr); // Add to DHT bucket
+                        swarm.behaviour_mut().kademlia.add_address(&peer_id, multiaddr.clone());
+                        // Explicitly dial to establish connection for GossipSub
+                        let _ = swarm.dial(multiaddr);
                     }
                 },
                 SwarmEvent::Behaviour(RatatoskrBehaviorEvent::Kademlia(kad::Event::OutboundQueryProgressed {
