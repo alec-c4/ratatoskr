@@ -91,7 +91,39 @@ To manage spam and malicious actors without central authority:
 
 ---
 
-## 7. Storage Layer (User Device)
+## 10. Identity & Contacts
+
+### A. Contact Management
+- **Exchange Protocol:**
+  - **QR Code:** Contains `did:rat:...`, `routing_hints`, and optional `handshake_token`.
+  - **Deep Link:** `ratatoskr://invite/...`
+  - **Smart Suggestions:** Recommendations based on Web of Trust intersection (optional, local-only).
+
+### B. KYC & Verifiable Credentials (VC)
+We use the **W3C Verifiable Credentials** standard.
+- **Structure:**
+  ```json
+  {
+    "issuer": "did:rat:gov_entity",
+    "subject": "did:rat:user_alice",
+    "claim": { "is_adult": true, "citizenship": "CH" },
+    "proof": "Ed25519Signature..."
+  }
+  ```
+- **Presentation:** Alice can selectively disclose these VCs to Bob during the handshake to prove her status without revealing unnecessary data (Selective Disclosure).
+
+### C. Anonymity Layer & Disposable Addresses
+- **Burner DIDs:** Derived ephemeral keys (HD Wallet style) routed to the user's main mailbox but cryptographically unlinkable.
+- **Protocol Flags:**
+  - `is_temporary`: Tells the sender UI to display a warning.
+  - `ttl`: Time until the key is deleted from the DHT.
+- **Circuit Breaker:** Public Gateways monitor inbound traffic rate.
+  - **Normal:** PoW difficulty = 1.
+  - **Under Attack:** Auto-scale PoW difficulty to 50+ (requiring seconds of CPU time per message), effectively stopping spam bots while allowing persistent humans.
+
+---
+
+## 11. Storage Layer (User Device)
 
 - **Engine:** SQLite (via SQLx).
 - **Encryption:** SQLCipher or Application-level AES-GCM encryption of database rows.

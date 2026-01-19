@@ -37,7 +37,18 @@ To protect users under duress (e.g., capture, torture, or border checks), Ratato
 ## Anti-Spam & Governance: "The Plague Protocol"
 
 To manage malicious actors without central authority, Ratatoskr implements a graph-based reputation system:
-...
+
+1.  **Infection & Quarantine:**
+    - If a user broadcasts malware or spam, peers can flag them as "Infected".
+    - This flag propagates through the Web of Trust. If your trusted contacts flag someone, your node automatically downgrades their reputation.
+    - **"Leper Colony":** Nodes with low reputation are isolated. Their messages are dropped by relay nodes, effectively muting them in public channels.
+    - **Contagion:** Interacting with an "Infected" node lowers your own reputation score, discouraging support for bad actors.
+
+2.  **SOS Immunity:**
+    - **Fundamental Right:** Even "Infected" nodes retain the ability to broadcast `SOS` signals. Saving a life takes precedence over social moderation.
+
+3.  **Censorship Resistance:**
+    - **Local View:** Reputation is subjective. A political group cannot globally ban an opponent; they can only ban them *from their own cluster*.
     - **Anonymous Jury:** For global disputes, a mechanism selects random, disinterested nodes to act as an anonymous jury, preventing targeted persecution.
 
 ## Inbox Zero Protocol (Architecture of Attention)
@@ -50,11 +61,17 @@ Ratatoskr replaces the outdated "chronological list" model with an intent-based 
     - **Transactional:** Information that is useful *once* (receipts, alerts). Auto-archived immediately after reading.
     - **Feed:** Low-priority updates. Stored in a ring buffer (oldest replaced by newest), never triggering push notifications.
 
-2.  **Stateful Threads (Message as a Task):**
-    - Threads have states: `Open` (Inbox) and `Done` (Archived).
-    - **Action Items:** Senders can flag a message as "Response Required". It remains pinned in the recipient's "Focus" view until replied to or explicitly dismissed.
+2.  **Stateful Threads (GTD Workflow):**
+    - Messages are treated as tasks.
+    - **States:**
+        - `Open`: Requires action.
+        - `Done`: Completed and archived.
+        - **`Defer` (Snooze):** Hide until a specific time or location.
+        - **`Decline`:** Reject the request (sender is notified).
+        - **`Delegate`:** Forward the action item to another contact with tracking.
+    - **Priority:** High-priority messages override 'Do Not Disturb' or 'Defer' rules based on relationship context.
 
-3.  **The "Postage Stamp" (Anti-Spam):
+3.  **The "Postage Stamp" (Anti-Spam):**
     - To contact a user for the first time, a sender must attach a cryptographic **Proof-of-Work (PoW)** or a small token stake.
     - This creates a computational cost for spam, making mass mailing economically unviable while remaining free for normal humans.
 
@@ -71,10 +88,32 @@ Ratatoskr replaces the outdated "chronological list" model with an intent-based 
 
 Recognizing that users are mortal, Ratatoskr includes a **Social Recovery** mechanism:
 - **Shamir's Secret Sharing:** A user can split their master key into fragments and distribute them to trusted contacts ("Guardians").
-- **Dead Man's Switch:** If Guardians initiate recovery, the user receives a high-priority alert. If the user does not cancel the process within a set timeframe (proving they are incapacitated or deceased), the Guardians can reconstruct the key to recover the account for the family.
+    - **Dead Man's Switch:** If Guardians initiate recovery, the user receives a high-priority alert. If the user does not cancel the process within a set timeframe (proving they are incapacitated or deceased), the Guardians can reconstruct the key to recover the account for the family.
+
+## The Spectrum of Identity
+
+Ratatoskr recognizes that different conversations require different levels of trust:
+
+1.  **Anonymous (Ghost Mode):**
+    - **Burner IDs:** Generate a temporary identity for a single conversation.
+    - **Disposable Inboxes:** Create a contact link that expires after a set time (e.g., 24h) or message count. Senders are explicitly notified: *"This is a temporary address. It may become unreachable at any time."*
+    - **Public Gateways (Circuit Breaker):** For website contact forms. If a public address is flooded with spam, it automatically triggers a "lockdown" (drastically increasing Proof-of-Work difficulty) or rotates the underlying ID without affecting the user's main profile.
+    
+2.  **Pseudonymous (Web of Trust):**
+    - Standard usage. Identify by persistent Public Key/Nickname. Trust is earned through reputation and mutual contacts.
+
+3.  **Verified (KYC/Bright Mode):**
+    - **Verifiable Credentials (VC):** Users can attach cryptographically signed attestations (e.g., "Verified Journalist", "Bank Employee") from trusted Issuers.
+    - **Use Case:** High-value transactions, official press comms, legal agreements.
+
+## Privacy & Access Control
+
+- **Gatekeeper Settings:** Users have granular control over who can contact them.
+    - **Allow Anonymous:** (On/Off). If Off, only messages from contacts or verified identities are accepted.
+    - **Blocklist:** Silent drop of messages from specific DIDs.
+    - **Whitelisting:** "Panic Mode" where only pre-approved contacts can reach the user.
 
 ## Implementation Roadmap
-
 ### Phase 1: Foundation (Current)
 - Establish Rust Core and P2P connectivity.
 - Local-only mDNS peer discovery.
