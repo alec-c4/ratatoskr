@@ -34,9 +34,12 @@ Goal: Allow users to exist independently of any server.
 - [x] **Routing**
     - [x] Implement DHT (Kademlia) for finding peers by ID.
     - [ ] Allow publishing "Mailbox" addresses to the DHT/Network.
+- [ ] **Digital Legacy**
+    - [ ] Implement Shamir's Secret Sharing for key sharding.
+    - [ ] Create "Guardian" invitation and shard distribution flow.
 
 ## Phase 3: Secure Chat & Efficient Communication
-Goal: Enable standard E2EE messaging with "Inbox Zero" architecture.
+Goal: Enable standard E2EE messaging with "Inbox Zero" architecture and multi-device support.
 
 - [ ] **Messaging Protocol**
     - [ ] Implement Double Ratchet Algorithm (Signal Protocol style).
@@ -45,6 +48,9 @@ Goal: Enable standard E2EE messaging with "Inbox Zero" architecture.
 - [ ] **Inbox Zero Logic**
     - [ ] Implement `GarbageCollector` background service.
     - [ ] Implement `ActionRequired` state logic (pinning/unpinning).
+- [ ] **Data & Sync**
+    - [ ] Implement Large File Transfer (IPFS-style chunking).
+    - [ ] Implement Multi-Device Sync using CRDTs.
 - [ ] **Mailbox / Offline Delivery**
     - [ ] Implement "Blind Storage" logic on Relay Server.
     - [ ] Implement Client logic to poll Mailbox for new messages.
@@ -52,22 +58,29 @@ Goal: Enable standard E2EE messaging with "Inbox Zero" architecture.
     - [ ] Setup SQLite database with SQLCipher encryption.
     - [ ] Implement "Plausible Deniability" (Decoy password vs Real password).
 
-## Phase 4: Resilience & Mesh
-Goal: Operate without standard internet.
+## Phase 4: Resilience & Governance
+Goal: Operate without standard internet and manage community trust.
 
 - [ ] **Mesh Networking**
     - [ ] Research & Implement Bluetooth Low Energy (BLE) transport for `libp2p`.
-    - [ ] Enable peer discovery via local Wi-Fi multicast (already partially done via mDNS).
+    - [ ] Enable peer discovery via local Wi-Fi multicast.
+- [ ] **The Plague Protocol**
+    - [ ] Implement trust-graph based reputation scoring.
+    - [ ] Create "Quarantine" logic for infected nodes (silent muting).
+- [ ] **Maintenance**
+    - [ ] Implement P2P Update System (viral patching).
 - [ ] **Trust Network**
     - [ ] Implement `VolunteerCredential` issuing and verification.
-    - [ ] Create UI for Organizations to manage volunteers.
 
-## Phase 5: Mobile & Polish
-Goal: User-friendly mobile app.
+## Phase 5: Media, Mobile & Polish
+Goal: High-performance real-time communication and mobile release.
 
+- [ ] **Real-time Media**
+    - [ ] Implement 1-on-1 A/V calls (WebRTC/libp2p stream).
+    - [ ] Implement Group A/V calls via Blind SFU (Relay nodes).
 - [ ] **Mobile Port**
     - [ ] Adapt UI for Mobile (Responsive).
     - [ ] Configure Tauri for Android/iOS build.
-    - [ ] Test background services on mobile.
-- [ ] **File Sharing**
-    - [ ] Implement chunked file transfer via P2P streams.
+- [ ] **Audit & Launch**
+    - [ ] Security audit of crypto and P2P implementation.
+    - [ ] Public Beta release.
