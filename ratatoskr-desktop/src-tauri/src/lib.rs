@@ -3,8 +3,10 @@ use ratatoskr_core::crypto::encrypt_sos_signal;
 use ratatoskr_core::key_vault::KeyVault;
 use ratatoskr_core::models::{GeoLocation, SosPayload, SosType};
 use ratatoskr_core::network::{build_swarm, run_network_node, NetworkCommand};
+use ratatoskr_core::storage::Storage;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{Manager, State};
 use tokio::sync::mpsc;
@@ -14,11 +16,32 @@ use tokio::sync::Mutex;
 struct AppState {
     network_sender: Mutex<mpsc::Sender<NetworkCommand>>,
     identity_path: PathBuf,
+    storage: Arc<Storage>,
 }
 
 #[tauri::command]
 fn ping() -> String {
     ratatoskr_core::init()
+}
+
+#[tauri::command]
+async fn add_contact(state: State<'_, AppState>, did: String, alias: String) -> Result<(), String> {
+    state
+        .storage
+        .add_contact(&did, &alias)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_contacts(state: State<'_, AppState>) -> Result<Vec<(String, Option<String>)>, String> {
+    let contacts = state
+        .storage
+        .list_contacts()
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(contacts)
 }
 
 #[tauri::command]
@@ -174,13 +197,21 @@ pub fn run() {
                 .expect("Failed to get config dir");
             fs::create_dir_all(&config_dir).expect("Failed to create config dir");
             let identity_path = config_dir.join("identity.key");
+            let db_path = config_dir.join("ratatoskr.db");
+
+            // Init DB (blocking for safety during startup)
+            let storage = tauri::async_runtime::block_on(async {
+                Storage::init(&db_path).await.expect("Failed to init DB")
+            });
 
             app.manage(AppState {
                 network_sender: Mutex::new(tx),
                 identity_path: identity_path.clone(),
+                storage: Arc::new(storage),
             });
 
             // Start P2P node in a separate background thread
+
             tauri::async_runtime::spawn(async move {
                 // Load or generate temporary identity for the network
                 let local_key = if identity_path.exists() {
@@ -222,7 +253,9 @@ pub fn run() {
             create_identity,
             recover_identity,
             delete_identity,
-            export_backup
+            export_backup,
+            add_contact,
+            get_contacts
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

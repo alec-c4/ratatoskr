@@ -35,16 +35,45 @@
   let generatedMnemonic = $state("");
   let copyFeedback = $state("");
 
+  // Contact State
+  let contacts: [string, string | null][] = $state([]);
+  let showAddContact = $state(false);
+  let newContactDid = $state("");
+  let newContactAlias = $state("");
+
   // Initialization
   onMount(() => {
     checkCore();
     loadIdentity();
+    loadContacts();
     // Simulate finding peers for UI demo
     const interval = setInterval(() => {
         if (peersCount < 5) peersCount += 1;
     }, 2000);
     return () => clearInterval(interval);
   });
+
+  async function loadContacts() {
+    try {
+        contacts = await invoke("get_contacts");
+    } catch (e) {
+        addLog(`Contacts Error: ${e}`);
+    }
+  }
+
+  async function addContact() {
+    if (!newContactDid) return;
+    try {
+        await invoke("add_contact", { did: newContactDid, alias: newContactAlias || "Unknown" });
+        await loadContacts();
+        showAddContact = false;
+        newContactDid = "";
+        newContactAlias = "";
+        addLog(`Contact added: ${newContactAlias}`);
+    } catch (e) {
+        addLog(`Add Contact Error: ${e}`);
+    }
+  }
 
   async function loadIdentity() {
     try {
@@ -281,6 +310,44 @@
               {/if}
             </div>
           </div>
+        </div>
+      {:else if activeTab === 'contacts'}
+        <div class="settings-view">
+            <div class="section-header">
+              <Users size={20} />
+              <span>Contacts</span>
+              <button class="small-btn" onclick={() => showAddContact = !showAddContact} style="margin-left: auto;">
+                <UserPlus size={14} /> <span>Add</span>
+              </button>
+            </div>
+
+            {#if showAddContact}
+                <div class="add-contact-form">
+                    <input placeholder="Public Key (DID)" bind:value={newContactDid} />
+                    <input placeholder="Alias (Name)" bind:value={newContactAlias} />
+                    <button class="primary-btn" onclick={addContact}>Save Contact</button>
+                </div>
+            {/if}
+
+            <div class="contacts-list">
+                {#each contacts as [did, alias] (did)}
+                    <div class="contact-item">
+                        <div class="avatar">
+                            {alias ? alias[0].toUpperCase() : '?'}
+                        </div>
+                        <div class="info">
+                            <div class="name">{alias || "Unknown"}</div>
+                            <div class="did">{did.substring(0, 16)}...</div>
+                        </div>
+                        <div class="actions">
+                            <button class="icon-btn" title="Message"><MessageSquare size={16}/></button>
+                        </div>
+                    </div>
+                {/each}
+                {#if contacts.length === 0}
+                    <div class="empty-state">No contacts yet. Add one to start chatting.</div>
+                {/if}
+            </div>
         </div>
       {:else if activeTab === 'settings'}
         <div class="settings-view">
@@ -621,6 +688,83 @@
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
+  }
+
+  .add-contact-form {
+    background: #111;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .add-contact-form input {
+    background: #000;
+    border: 1px solid #333;
+    color: white;
+    padding: 10px;
+    border-radius: 4px;
+  }
+
+  .contacts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .contact-item {
+    display: flex;
+    align-items: center;
+    background: #1a1a1a;
+    padding: 10px;
+    border-radius: 8px;
+    gap: 15px;
+  }
+
+  .avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #333;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: #888;
+  }
+
+  .info {
+    flex: 1;
+  }
+
+  .name {
+    font-weight: bold;
+    color: #eee;
+  }
+
+  .did {
+    font-size: 10px;
+    color: #666;
+    font-family: monospace;
+  }
+
+  .icon-btn {
+    background: transparent;
+    border: none;
+    color: #666;
+    cursor: pointer;
+  }
+  
+  .icon-btn:hover {
+    color: #27ae60;
+  }
+
+  .empty-state {
+    text-align: center;
+    color: #555;
+    padding: 40px;
   }
 
   /* SETTINGS & IDENTITY */
