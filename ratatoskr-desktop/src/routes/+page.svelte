@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
   import { 
     Activity, 
     ShieldAlert, 
@@ -42,8 +43,15 @@
   let newContactAlias = $state("");
 
   // Chat State
+  interface ChatMessage {
+    id: string;
+    sender_did: string;
+    content: number[];
+    timestamp: number;
+  }
+
   let selectedContact = $state<[string, string | null] | null>(null);
-  let chatMessages = $state<any[]>([]); // eslint-disable-line
+  let chatMessages = $state<ChatMessage[]>([]);
   let newMessage = $state("");
 
   // Initialization
@@ -51,11 +59,28 @@
     checkCore();
     loadIdentity();
     loadContacts();
+    
+    // Listen for incoming messages
+    let unlisten: () => void;
+    listen<ChatMessage>("msg-received", (event) => {
+        const msg = event.payload;
+        addLog(`Message received from ${msg.sender_did}`);
+        
+        // If chat is open, append
+        if (selectedContact && selectedContact[0] === msg.sender_did) {
+            chatMessages = [...chatMessages, msg];
+        }
+    }).then(u => unlisten = u);
+
     // Simulate finding peers for UI demo
     const interval = setInterval(() => {
         if (peersCount < 5) peersCount += 1;
     }, 2000);
-    return () => clearInterval(interval);
+    
+    return () => {
+        clearInterval(interval);
+        if (unlisten) unlisten();
+    };
   });
 
   async function loadMessages(did: string) {

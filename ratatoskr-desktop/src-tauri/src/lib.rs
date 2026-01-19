@@ -8,7 +8,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{Manager, State};
+use tauri::{Emitter, Manager, State};
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 
@@ -257,15 +257,49 @@ pub fn run() {
             let storage = tauri::async_runtime::block_on(async {
                 Storage::init(&db_path).await.expect("Failed to init DB")
             });
+            let storage_arc = Arc::new(storage); // Clone for event loop
 
             app.manage(AppState {
                 network_sender: Mutex::new(tx),
                 identity_path: identity_path.clone(),
-                storage: Arc::new(storage),
+                storage: storage_arc.clone(),
+            });
+
+            // Channel for Network -> UI events
+            let (event_tx, mut event_rx) = mpsc::channel(32);
+            let app_handle_clone = app_handle.clone();
+
+            // Event Loop: Network -> UI
+            tauri::async_runtime::spawn(async move {
+                while let Some(event) = event_rx.recv().await {
+                    match event {
+                        ratatoskr_core::network::NetworkEvent::MessageReceived {
+                            topic,
+                            payload,
+                            sender: _,
+                        } => {
+                            println!("UI: Received message on topic {}", topic);
+
+                            // 1. Try to deserialize (assume it is a ChatMessage)
+                            if let Ok(mut msg) = serde_json::from_slice::<
+                                ratatoskr_core::models::ChatMessage,
+                            >(&payload)
+                            {
+                                // 2. Save to DB
+                                msg.status = ratatoskr_core::models::MessageStatus::Unread; // Mark as unread
+                                if let Err(e) = storage_arc.save_message(&msg).await {
+                                    eprintln!("Failed to save incoming message: {}", e);
+                                }
+
+                                // 3. Emit to UI
+                                let _ = app_handle_clone.emit("msg-received", msg);
+                            }
+                        }
+                    }
+                }
             });
 
             // Start P2P node in a separate background thread
-
             tauri::async_runtime::spawn(async move {
                 // Load or generate temporary identity for the network
                 let local_key = if identity_path.exists() {
@@ -291,7 +325,7 @@ pub fn run() {
                             let _ = active_swarm.dial(addr);
                         }
 
-                        if let Err(e) = run_network_node(active_swarm, rx).await {
+                        if let Err(e) = run_network_node(active_swarm, rx, event_tx).await {
                             eprintln!("Network node crashed: {}", e);
                         }
                     }

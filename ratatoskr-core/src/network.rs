@@ -19,6 +19,16 @@ pub enum NetworkCommand {
     FindPeer(String),       // Find peer address by ID
 }
 
+// Events that the Network sends to the UI
+#[derive(Debug)]
+pub enum NetworkEvent {
+    MessageReceived {
+        topic: String,
+        payload: Vec<u8>,
+        sender: String,
+    },
+}
+
 // Network behavior
 #[derive(NetworkBehaviour)]
 pub struct RatatoskrBehavior {
@@ -84,6 +94,7 @@ pub async fn build_swarm(
 pub async fn run_network_node(
     mut swarm: Swarm<RatatoskrBehavior>,
     mut command_receiver: mpsc::Receiver<NetworkCommand>,
+    event_sender: mpsc::Sender<NetworkEvent>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Subscribe to the SOS channel
     let sos_topic = gossipsub::IdentTopic::new("ratatoskr-sos");
@@ -122,6 +133,22 @@ pub async fn run_network_node(
                 },
                 SwarmEvent::Behaviour(RatatoskrBehaviorEvent::Gossipsub(gossipsub::Event::Subscribed { peer_id, topic })) => {
                     println!("Peer {:?} subscribed to {:?}", peer_id, topic);
+                },
+                SwarmEvent::Behaviour(RatatoskrBehaviorEvent::Gossipsub(
+                    gossipsub::Event::Message {
+                        propagation_source: peer_id,
+                        message_id: id,
+                        message,
+                    },
+                )) => {
+                    println!("🚨 RECEIVED MESSAGE from {:?}", peer_id);
+                    println!("   Message ID: {}", id);
+
+                    let _ = event_sender.send(NetworkEvent::MessageReceived {
+                        topic: message.topic.to_string(),
+                        payload: message.data,
+                        sender: peer_id.to_string(),
+                    }).await;
                 },
                 _ => {}
             },
