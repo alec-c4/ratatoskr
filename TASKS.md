@@ -35,14 +35,18 @@ Goal: Allow users to exist independently of any server.
     - [x] Implement DHT (Kademlia) for finding peers by ID.
     - [ ] Allow publishing "Mailbox" addresses to the DHT/Network.
 
-## Phase 3: Secure Chat & Storage
-Goal: Enable standard E2EE messaging between users (User-to-User).
+## Phase 3: Secure Chat & Efficient Communication
+Goal: Enable standard E2EE messaging with "Inbox Zero" architecture.
 
 - [ ] **Messaging Protocol**
-    - [ ] Implement Double Ratchet Algorithm (Signal Protocol style) for perfect forward secrecy.
-    - [ ] Define `ChatMessage` payload structure.
+    - [ ] Implement Double Ratchet Algorithm (Signal Protocol style).
+    - [ ] Define `ChatMessage` structure with Semantic Types (`Direct`, `Ephemeral`, `Transactional`).
+    - [ ] Implement `TTL` logic for ephemeral messages (auto-delete).
+- [ ] **Inbox Zero Logic**
+    - [ ] Implement `GarbageCollector` background service.
+    - [ ] Implement `ActionRequired` state logic (pinning/unpinning).
 - [ ] **Mailbox / Offline Delivery**
-    - [ ] Implement "Blind Storage" logic on Relay Server (store encrypted blobs for ID).
+    - [ ] Implement "Blind Storage" logic on Relay Server.
     - [ ] Implement Client logic to poll Mailbox for new messages.
 - [ ] **Local Storage**
     - [ ] Setup SQLite database with SQLCipher encryption.

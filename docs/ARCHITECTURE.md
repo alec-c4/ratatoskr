@@ -91,14 +91,63 @@ To manage spam and malicious actors without central authority:
 
 ---
 
-## 5. Storage Layer (User Device)
+## 7. Storage Layer (User Device)
 
 - **Engine:** SQLite (via SQLx).
 - **Encryption:** SQLCipher or Application-level AES-GCM encryption of database rows.
-- **Plausible Deniability (Duress Mode):**
-  - **Decoy Database:** A secondary, innocuous database unlocked by a different password.
-  - **Panic Wipe:** A "Panic PIN" or hardware trigger instantly shreds the encryption keys from memory and disk, rendering the primary database permanently unrecoverable.
 - **Schema:**
-  - `contacts`: DIDs, Public Keys, Nicknames.
-  - `messages`: content (encrypted), timestamp, status (sent/delivered), type (text/image/sos).
+  - `contacts`: DIDs, Public Keys, Nicknames, Reputation Score.
+  - `messages`: 
+    - `id`: UUID.
+    - `content`: Encrypted blob.
+    - `type`: `Direct` | `Ephemeral` | `Transactional` | `Feed`.
+    - `ttl`: Timestamp for auto-deletion.
+    - `status`: `Unread` | `ActionRequired` | `Done`.
   - `credentials`: Own certificates and certificates of trusted organizations.
+
+### A. Extensible Message Format
+Messages are not just text. They are structured objects defined by a Schema ID.
+```json
+{
+  "header": {
+    "type": "urn:ratatoskr:protocol:ephemeral",
+    "ttl": 3600,
+    "priority": "high"
+  },
+  "body": "Encrypted Payload..."
+}
+```
+
+### B. Digital Legacy (Key Sharding)
+- **Algorithm:** Shamir's Secret Sharing (SSS) over Ed25519 seed.
+- **Protocol:**
+  1. User selects N Guardians. Threshold K is set (e.g., 3 of 5).
+  2. Shards are encrypted with Guardians' Public Keys and stored in their Mailboxes.
+  3. **Recovery:** Guardians publish "Shard Reveal" transactions. Once K reveals are seen, the Client (on a relative's device) can reconstruct the seed.
+
+---
+
+## 9. Advanced Capabilities
+
+### A. Multi-Device Sync (CRDT)
+To support a seamless experience across mobile and desktop:
+- **Device Clusters:** Multiple devices share the same Identity (Master Key derives Sub-keys).
+- **State Sync:** Message history and read statuses are synchronized using **CRDTs (Conflict-free Replicated Data Types)**. This allows offline modifications on multiple devices to merge automatically without conflicts when connectivity is restored.
+
+### B. Real-Time Media (A/V Calls)
+- **1-on-1 Calls:** Direct P2P streams via `libp2p` (using QUIC transport).
+- **Group Calls:** To avoid bandwidth saturation in a full mesh, volunteer Relay Nodes act as **Blind SFUs (Selective Forwarding Units)**. They forward encrypted media packets between participants without having the keys to decrypt the audio/video streams.
+
+### C. Large File Transfer
+- **Protocol:** IPFS-style chunking.
+- **Delivery:** Files are not sent through the chat channel. The sender uploads encrypted chunks to a swarm of Mailbox nodes (or directly to the receiver via a data stream). The chat message contains only the **Content Hash (CID)** and decryption key.
+
+### D. Censorship-Resistant Updates
+- **Viral Patching:** The application can download signed updates from other peers in the network, bypassing blocked App Stores or websites.
+- **Verification:** Updates are signed by the Foundation's offline root key.
+
+The client implements logic to automatically manage message lifecycles:
+1.  **Garbage Collection:** A background task runs periodically to delete expired `Ephemeral` messages.
+2.  **Auto-Archive:** `Transactional` messages move to `Archive` state immediately upon `Read` event.
+3.  **Focus View:** The UI prioritizes threads with `status = ActionRequired` or `Unread` from Human contacts.
+

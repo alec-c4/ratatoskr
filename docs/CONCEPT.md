@@ -37,19 +37,41 @@ To protect users under duress (e.g., capture, torture, or border checks), Ratato
 ## Anti-Spam & Governance: "The Plague Protocol"
 
 To manage malicious actors without central authority, Ratatoskr implements a graph-based reputation system:
-
-1.  **Infection & Quarantine:**
-    - If a user broadcasts malware or spam, peers can flag them as "Infected".
-    - This flag propagates through the Web of Trust. If your trusted contacts flag someone, your node automatically downgrades their reputation.
-    - **"Leper Colony":** Nodes with low reputation are isolated. Their messages are dropped by relay nodes, effectively muting them in public channels.
-    - **Contagion:** Interacting with an "Infected" node lowers your own reputation score, discouraging support for bad actors.
-
-2.  **SOS Immunity:**
-    - **Fundamental Right:** Even "Infected" nodes retain the ability to broadcast `SOS` signals. Saving a life takes precedence over social moderation.
-
-3.  **Censorship Resistance:**
-    - **Local View:** Reputation is subjective. A political group cannot globally ban an opponent; they can only ban them *from their own cluster*.
+...
     - **Anonymous Jury:** For global disputes, a mechanism selects random, disinterested nodes to act as an anonymous jury, preventing targeted persecution.
+
+## Inbox Zero Protocol (Architecture of Attention)
+
+Ratatoskr replaces the outdated "chronological list" model with an intent-based architecture designed to eliminate clutter:
+
+1.  **Semantic Message Types:**
+    - **Direct (Human):** Standard messages requiring attention.
+    - **Ephemeral (OTP/Secret):** Messages with a strict **TTL (Time-To-Live)**. They self-destruct after reading or a set time (e.g., 2FA codes), never clogging the database.
+    - **Transactional:** Information that is useful *once* (receipts, alerts). Auto-archived immediately after reading.
+    - **Feed:** Low-priority updates. Stored in a ring buffer (oldest replaced by newest), never triggering push notifications.
+
+2.  **Stateful Threads (Message as a Task):**
+    - Threads have states: `Open` (Inbox) and `Done` (Archived).
+    - **Action Items:** Senders can flag a message as "Response Required". It remains pinned in the recipient's "Focus" view until replied to or explicitly dismissed.
+
+3.  **The "Postage Stamp" (Anti-Spam):
+    - To contact a user for the first time, a sender must attach a cryptographic **Proof-of-Work (PoW)** or a small token stake.
+    - This creates a computational cost for spam, making mass mailing economically unviable while remaining free for normal humans.
+
+4.  **Extensible Protocols:**
+    - The message type system is flexible. Developers can define custom protocols (e.g., "Voting", "Payment", "Live Location") with their own retention policies and action buttons.
+    - **Open Integrations:** External services (banks, monitoring systems) can send encrypted notifications directly to a user's DID, automatically categorized as `Transactional` to keep the Inbox clean.
+
+5.  **Seamless Experience:**
+    - **Multi-Device:** Sync your chats across phone and laptop without relying on a cloud server.
+    - **Calls:** Crystal clear Voice and Video calls, end-to-end encrypted. Group calls are supported via volunteer relays.
+    - **Unstoppable Updates:** Even if our website is blocked, the app updates itself through the mesh network.
+
+## Digital Legacy & Guardians
+
+Recognizing that users are mortal, Ratatoskr includes a **Social Recovery** mechanism:
+- **Shamir's Secret Sharing:** A user can split their master key into fragments and distribute them to trusted contacts ("Guardians").
+- **Dead Man's Switch:** If Guardians initiate recovery, the user receives a high-priority alert. If the user does not cancel the process within a set timeframe (proving they are incapacitated or deceased), the Guardians can reconstruct the key to recover the account for the family.
 
 ## Implementation Roadmap
 
