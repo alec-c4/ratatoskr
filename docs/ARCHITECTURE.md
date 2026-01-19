@@ -71,10 +71,11 @@ A single physical server or device can perform multiple roles, but logically the
 
 ---
 
-## 4. Trust & Access Control (Volunteers)
+## 4. Trust & Access Control (Volunteers & Reputation)
 
-We use a **Web of Trust (WoT)** model anchored by Organizations.
+We use a **Web of Trust (WoT)** model anchored by Organizations and a decentralized reputation system ("Plague Protocol").
 
+### A. Volunteer Verification
 - **Verifiable Credentials (VC):**
   - An Organization signs a certificate: `{ "subject": "Volunteer_PublicKey", "role": "Medic", "exp": 2026-01-01 }`.
   - This certificate is stored on the Volunteer's device.
@@ -82,31 +83,21 @@ We use a **Web of Trust (WoT)** model anchored by Organizations.
   - When an Organization receives an SOS, they look for active peers with valid VCs.
   - The Organization sends the coordinates *only* to the selected Volunteer, encrypted with the Volunteer's key.
 
----
-
-## 6. Censorship Circumvention & Stealth
-
-To operate in hostile network environments (DPI, Firewalls), Ratatoskr implements a multi-layered transport strategy:
-
-### A. Protocol Obfuscation
-- **Standard Mode:** TCP/QUIC + Noise (High performance, easily detectable).
-- **Stealth Mode (Proposed):**
-  - **WebSocket + TLS:** Traffic mimics standard HTTPS web browsing (`443` port).
-  - **Packet Padding:** Randomizing packet sizes to defeat statistical analysis.
-  - **Pluggable Transports:** Future support for Tor bridges or Shadowsocks-like obfuscation.
-
-### B. Discovery without Multicast
-- In restricted networks where mDNS is blocked:
-  - **Bootstrap Nodes:** Hardcoded list of trusted entry points (rotatable via DNS TXT records or IPFS).
-  - **DHT Random Walk:** Aggressive DHT crawling to find new peers once connected to at least one node.
-  - **Manual Peering:** Users can scan a QR code from another device to establish a direct connection (add peer by Multiaddr).
+### B. The Plague Protocol (Reputation System)
+To manage spam and malicious actors without central authority:
+- **Infection:** Nodes can flag peers as "Infected" (malicious). This flag propagates through the Web of Trust.
+- **Quarantine (Leper Colony):** Messages from nodes with a low reputation score are dropped by relays for public channels.
+- **SOS Immunity:** `SOS` signals are **exempt** from reputation filtering. Saving a life takes precedence over social moderation.
 
 ---
 
-## 7. Storage Layer (User Device)
+## 5. Storage Layer (User Device)
 
 - **Engine:** SQLite (via SQLx).
 - **Encryption:** SQLCipher or Application-level AES-GCM encryption of database rows.
+- **Plausible Deniability (Duress Mode):**
+  - **Decoy Database:** A secondary, innocuous database unlocked by a different password.
+  - **Panic Wipe:** A "Panic PIN" or hardware trigger instantly shreds the encryption keys from memory and disk, rendering the primary database permanently unrecoverable.
 - **Schema:**
   - `contacts`: DIDs, Public Keys, Nicknames.
   - `messages`: content (encrypted), timestamp, status (sent/delivered), type (text/image/sos).
