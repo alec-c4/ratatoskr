@@ -5,3 +5,6 @@ members = [
     "ratatoskr-desktop/src-tauri"
 ]
 resolver = "2"
+
+[workspace.package]
+authors = ["Alexey Poimtsev"]

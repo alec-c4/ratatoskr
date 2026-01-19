@@ -6,6 +6,8 @@
 ![Status: Prototype](https://img.shields.io/badge/Status-Prototype-orange.svg)
 
 > **Mission:** To ensure information flows even when the "trunk" of the internet is severed.
+> 
+> **Original Concept:** Alexey Poimtsev
 
 ## 📜 Documentation & Governance
 
