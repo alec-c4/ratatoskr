@@ -371,6 +371,9 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 while let Some(event) = event_rx.recv().await {
                     match event {
+                        ratatoskr_core::network::NetworkEvent::PeerCountUpdated(count) => {
+                            let _ = app_handle_clone.emit("peer-count-update", count);
+                        }
                         ratatoskr_core::network::NetworkEvent::MessageReceived {
                             topic,
                             payload,

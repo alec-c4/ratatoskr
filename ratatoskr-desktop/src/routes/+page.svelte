@@ -91,20 +91,27 @@
         }
       }).then((u) => (unlisten = u));
   
-      // Simulate finding peers for UI demo
-      const interval = setInterval(() => {
-        if (peersCount < 5) peersCount += 1;
-      }, 2000);
+                  // Listen for peer updates
   
-          return () => {
+                  listen<number>("peer-count-update", (event) => {
   
-            clearInterval(interval);
+                      peersCount = event.payload;
+  
+                  });
+  
+              
+  
+                  return () => {
+  
+              
   
             if (unlisten) unlisten();
   
           };
   
         });
+  
+      
   
       
   

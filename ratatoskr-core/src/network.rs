@@ -27,6 +27,7 @@ pub enum NetworkEvent {
         payload: Vec<u8>,
         sender: String,
     },
+    PeerCountUpdated(usize),
 }
 
 // Network behavior
@@ -113,8 +114,18 @@ pub async fn run_network_node(
     // Listen on any available port
     swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
 
+    let mut stats_interval = tokio::time::interval(Duration::from_secs(5));
+    let mut last_peer_count = 0;
+
     loop {
         tokio::select! {
+            _ = stats_interval.tick() => {
+                let current_peers = swarm.network_info().num_peers();
+                if current_peers != last_peer_count {
+                    last_peer_count = current_peers;
+                    let _ = event_sender.send(NetworkEvent::PeerCountUpdated(current_peers)).await;
+                }
+            },
             // 1. Network Events
             event = swarm.select_next_some() => match event {
                 SwarmEvent::NewListenAddr { address, .. } => {
