@@ -34,6 +34,10 @@ Goal: Allow users to exist independently of any server.
 - [x] **Routing**
     - [x] Implement DHT (Kademlia) for finding peers by ID.
     - [ ] Allow publishing "Mailbox" addresses to the DHT/Network.
+- [ ] **Privacy & Anonymity**
+    - [ ] Implement Disposable Inboxes (Ephemeral burner DIDs).
+    - [ ] Implement Circuit Breaker for public gateways (adaptive PoW).
+    - [ ] Implement Blocklist / Gatekeeper settings.
 - [ ] **Digital Legacy**
     - [ ] Implement Shamir's Secret Sharing for key sharding.
     - [ ] Create "Guardian" invitation and shard distribution flow.
@@ -43,19 +47,21 @@ Goal: Enable standard E2EE messaging with "Inbox Zero" architecture and multi-de
 
 - [ ] **Messaging Protocol**
     - [ ] Implement Double Ratchet Algorithm (Signal Protocol style).
-    - [ ] Define `ChatMessage` structure with Semantic Types (`Direct`, `Ephemeral`, `Transactional`).
-    - [ ] Implement `TTL` logic for ephemeral messages (auto-delete).
-- [ ] **Inbox Zero Logic**
-    - [ ] Implement `GarbageCollector` background service.
-    - [ ] Implement `ActionRequired` state logic (pinning/unpinning).
+    - [x] Define `ChatMessage` structure with Semantic Types (`Direct`, `Ephemeral`, `Transactional`).
+    - [x] Implement `TTL` logic for ephemeral messages (backend cleanup + UI removal).
+    - [x] Implement bidirectional chat history (sender and recipient visibility).
+    - [x] Implement Reply/Quote system.
+- [x] **Inbox Zero Logic**
+    - [x] Implement `GarbageCollector` background service.
+    - [x] Implement `ActionRequired` and `Done` state logic.
 - [ ] **Data & Sync**
     - [ ] Implement Large File Transfer (IPFS-style chunking).
     - [ ] Implement Multi-Device Sync using CRDTs.
 - [ ] **Mailbox / Offline Delivery**
     - [ ] Implement "Blind Storage" logic on Relay Server.
     - [ ] Implement Client logic to poll Mailbox for new messages.
-- [ ] **Local Storage**
-    - [ ] Setup SQLite database with SQLCipher encryption.
+- [x] **Local Storage**
+    - [x] Setup SQLite database with SQLx.
     - [ ] Implement "Plausible Deniability" (Decoy password vs Real password).
 
 ## Phase 4: Resilience & Governance
