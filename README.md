@@ -6,7 +6,7 @@
 ![Status: Prototype](https://img.shields.io/badge/Status-Prototype-orange.svg)
 
 > **Mission:** To ensure information flows even when the "trunk" of the internet is severed.
-> 
+>
 > **Original Concept:** Alexey Poimtsev
 
 ## 📜 Documentation & Governance
@@ -19,27 +19,30 @@
 
 ## 🛠️ Features
 
-*   **Unblockable:** P2P architecture using `libp2p` (GossipSub, Kademlia DHT).
-*   **Secure:** End-to-End Encryption (E2EE) by default.
-*   **Emergency Mode:** "Black Box SOS" protocol for anonymous distress signals.
-*   **Identity:** Self-Sovereign Identity (DID) with BIP-39 mnemonic recovery.
-*   **Resilience:** Designed for mesh networking and offline scenarios.
+- **Unblockable:** P2P architecture using `libp2p` (GossipSub, Kademlia DHT).
+- **Secure:** End-to-End Encryption (E2EE) by default.
+- **Emergency Mode:** "Black Box SOS" protocol for anonymous distress signals.
+- **Identity:** Self-Sovereign Identity (DID) with BIP-39 mnemonic recovery.
+- **Resilience:** Designed for mesh networking and offline scenarios.
 
 ## 🚀 Getting Started
 
 ### Prerequisites
+
 - Rust (latest stable)
 - Node.js (v18+) & npm
 
 ### Development
 
 1.  **Clone the repository:**
+
     ```bash
-    git clone https://github.com/your-username/ratatoskr.git
+    git clone https://github.com/alec-c4/ratatoskr.git
     cd ratatoskr
     ```
 
 2.  **Run the Relay Server (Terminal 1):**
+
     ```bash
     cargo run -p ratatoskr-server
     ```
@@ -53,7 +56,7 @@
 
 ## 🤝 Contributing
 
-We welcome contributions that align with our [Mission](FOUNDATION.md). 
+We welcome contributions that align with our [Mission](FOUNDATION.md).
 Please read our [Architecture](docs/ARCHITECTURE.md) guide before submitting PRs.
 
 ## 📄 License
