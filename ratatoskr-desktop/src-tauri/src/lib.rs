@@ -37,27 +37,19 @@ async fn get_messages(
 }
 
 #[tauri::command]
-
 async fn send_message(
     state: State<'_, AppState>,
-
     recipient_did: String,
-
     content: String,
-
     msg_type_str: String,
-
     reply_to_id: Option<String>,
 ) -> Result<(), String> {
     use ratatoskr_core::models::{ChatMessage, MessageStatus, MessageType};
 
     let msg_type = match msg_type_str.as_str() {
         "Ephemeral" => MessageType::Ephemeral,
-
         "Transactional" => MessageType::Transactional,
-
         "Feed" => MessageType::Feed,
-
         _ => MessageType::Direct,
     };
 
@@ -67,7 +59,6 @@ async fn send_message(
         .as_secs();
 
     // Calculate TTL (60 seconds for Ephemeral messages for testing)
-
     let ttl = if matches!(msg_type, MessageType::Ephemeral) {
         Some(now + 60)
     } else {
@@ -86,7 +77,7 @@ async fn send_message(
     // 1. Create message object
     let msg = ChatMessage {
         id: uuid::Uuid::new_v4().to_string(),
-        sender_did: sender_did.clone(), // Use real DID
+        sender_did: sender_did.clone(),
         recipient_did,
         msg_type,
         status: MessageStatus::Unread,
@@ -98,8 +89,6 @@ async fn send_message(
     };
 
     // 2. Save to local DB
-    // Note: When saving to OUR db, we might want to keep 'sender_did' as our DID so we know we sent it.
-    // Or we rely on the fact that if sender_did == my_did, it's an outgoing message.
     state
         .storage
         .save_message(&msg)
@@ -112,7 +101,7 @@ async fn send_message(
         state.network_sender.lock().await;
     sender
         .send(NetworkCommand::BroadcastSos(packet_bytes))
-        .await // Reuse broadcast for now
+        .await
         .map_err(|e| e.to_string())?;
 
     Ok(())
@@ -246,8 +235,6 @@ async fn delete_identity(state: State<'_, AppState>) -> Result<(), String> {
 
 #[tauri::command]
 async fn export_backup(app_handle: tauri::AppHandle, content: String) -> Result<String, String> {
-    // use tauri::path::BaseDirectory; // Removed unused import
-
     let download_dir = app_handle
         .path()
         .download_dir()
@@ -277,7 +264,6 @@ async fn send_sos(
     long: f64,
     description: String,
 ) -> Result<String, String> {
-    // 1. Form the Payload (as before)
     let sos_type = match help_type.as_str() {
         "Medical" => SosType::Medical,
         "Evacuation" => SosType::Evacuation,
@@ -301,16 +287,13 @@ async fn send_sos(
         timestamp: now,
     };
 
-    // 2. Encrypt (Organization Key)
     let trusted_key = [7u8; 32];
     let packet = encrypt_sos_signal(&payload, &trusted_key)
         .map_err(|e| format!("Encryption Error: {}", e))?;
 
-    // 3. Serialize the packet for network transmission (to bytes)
     let packet_bytes =
         serde_json::to_vec(&packet).map_err(|e| format!("Serialization Error: {}", e))?;
 
-    // 4. Send the command to the network thread
     let sender: tokio::sync::MutexGuard<mpsc::Sender<NetworkCommand>> =
         state.network_sender.lock().await;
     match sender
@@ -327,15 +310,12 @@ async fn send_sos(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Create channel: UI -> Network
     let (tx, rx) = mpsc::channel(32);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(move |app| {
             let app_handle = app.handle();
-
-            // Allow overriding config dir via ENV for multi-instance testing
             let config_dir = if let Ok(custom_path) = std::env::var("RATATOSKR_CONFIG_DIR") {
                 println!("Using custom config dir: {}", custom_path);
                 PathBuf::from(custom_path)
@@ -350,11 +330,10 @@ pub fn run() {
             let identity_path = config_dir.join("identity.key");
             let db_path = config_dir.join("ratatoskr.db");
 
-            // Init DB (blocking for safety during startup)
             let storage = tauri::async_runtime::block_on(async {
                 Storage::init(&db_path).await.expect("Failed to init DB")
             });
-            let storage_arc = Arc::new(storage); // Clone for event loop
+            let storage_arc = Arc::new(storage);
 
             app.manage(AppState {
                 network_sender: Mutex::new(tx),
@@ -362,12 +341,10 @@ pub fn run() {
                 storage: storage_arc.clone(),
             });
 
-            // Channel for Network -> UI events
             let (event_tx, mut event_rx) = mpsc::channel(32);
             let app_handle_clone = app_handle.clone();
             let storage_for_events = storage_arc.clone();
 
-            // Event Loop: Network -> UI
             tauri::async_runtime::spawn(async move {
                 while let Some(event) = event_rx.recv().await {
                     match event {
@@ -380,19 +357,14 @@ pub fn run() {
                             sender: _,
                         } => {
                             println!("UI: Received message on topic {}", topic);
-
-                            // 1. Try to deserialize (assume it is a ChatMessage)
                             if let Ok(mut msg) = serde_json::from_slice::<
                                 ratatoskr_core::models::ChatMessage,
                             >(&payload)
                             {
-                                // 2. Save to DB
-                                msg.status = ratatoskr_core::models::MessageStatus::Unread; // Mark as unread
+                                msg.status = ratatoskr_core::models::MessageStatus::Unread;
                                 if let Err(e) = storage_for_events.save_message(&msg).await {
                                     eprintln!("Failed to save incoming message: {}", e);
                                 }
-
-                                // 3. Emit to UI
                                 let _ = app_handle_clone.emit("msg-received", msg);
                             }
                         }
@@ -400,7 +372,6 @@ pub fn run() {
                 }
             });
 
-            // Garbage Collector: Periodically delete expired messages
             let storage_gc = storage_arc.clone();
             tauri::async_runtime::spawn(async move {
                 let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
@@ -416,9 +387,7 @@ pub fn run() {
                 }
             });
 
-            // Start P2P node in a separate background thread
             tauri::async_runtime::spawn(async move {
-                // Load or generate temporary identity for the network
                 let local_key = if identity_path.exists() {
                     match KeyVault::load_from_file(&identity_path) {
                         Ok(vault) => {
@@ -434,14 +403,11 @@ pub fn run() {
                 match build_swarm(local_key).await {
                     Ok(swarm) => {
                         println!("Desktop P2P Node Started");
-
-                        // Better approach: Dial directly on swarm before running loop
                         let mut active_swarm = swarm;
                         if let Ok(addr) = "/ip4/127.0.0.1/tcp/4001".parse::<Multiaddr>() {
                             println!("Bootstrapping: Connecting to local relay...");
                             let _ = active_swarm.dial(addr);
                         }
-
                         if let Err(e) = run_network_node(active_swarm, rx, event_tx).await {
                             eprintln!("Network node crashed: {}", e);
                         }
