@@ -41,147 +41,185 @@
   let userIdentity = $state<string | null>(null);
   let accountCreated = $state(false);
   
-  // Registration State
-  let showRecovery = $state(false);
-  let recoveryPhrase = $state("");
-  let generatedMnemonic = $state("");
-  let copyFeedback = $state("");
-
-  // Contact State
-  let contacts: [string, string | null][] = $state([]);
-  let showAddContact = $state(false);
-  let newContactDid = $state("");
-  let newContactAlias = $state("");
-
-  // Chat State
-  let selectedContact = $state<[string, string | null] | null>(null);
-  let chatMessages = $state<ChatMessage[]>([]);
-  let newMessage = $state("");
-  let nextMessageType = $state("Direct");
-
-  // Initialization
-  onMount(() => {
-    checkCore();
-    loadIdentity();
-    loadContacts();
-
-    // Listen for incoming messages
-    let unlisten: () => void;
-    listen<ChatMessage>("msg-received", (event) => {
-      const msg = event.payload;
-      addLog(`Message received from ${msg.sender_did}`);
-
-      // If chat is open, append
-      if (selectedContact && selectedContact[0] === msg.sender_did) {
-        chatMessages = [...chatMessages, msg];
-      }
-    }).then((u) => (unlisten = u));
-
-    // Simulate finding peers for UI demo
-    const interval = setInterval(() => {
-      if (peersCount < 5) peersCount += 1;
-    }, 2000);
-
-    return () => {
-      clearInterval(interval);
-      if (unlisten) unlisten();
-    };
-  });
-
-  async function loadMessages(did: string) {
-    try {
-      chatMessages = await invoke("get_messages", { did });
-    } catch (e) {
-      addLog(`Messages Error: ${e}`);
+    let showRecovery = $state(false);
+    let recoveryPhrase = $state("");
+    let generatedMnemonic = $state("");
+    let copyFeedback = $state("");
+    let registrationName = $state("");
+    let userProfileName = $state("Anonymous");
+  
+    // Contact State
+    let contacts: [string, string | null][] = $state([]);
+    let showAddContact = $state(false);
+    let newContactDid = $state("");
+    let newContactAlias = $state("");
+  
+    // Chat State
+    interface ChatMessage {
+      id: string;
+      sender_did: string;
+      content: number[];
+      timestamp: number;
+      msg_type?: string;
+      status?: string;
+      ttl?: number;
     }
-  }
-
-  async function sendMessage() {
-    if (!selectedContact || !newMessage) return;
-    try {
-        await invoke("send_message", { 
-            recipientDid: selectedContact[0], 
-            content: newMessage,
-            // To be added to backend send_message call
+  
+    let selectedContact = $state<[string, string | null] | null>(null);
+    let chatMessages = $state<ChatMessage[]>([]);
+    let newMessage = $state("");
+    let nextMessageType = $state("Direct");
+  
+    // Initialization
+    onMount(() => {
+      checkCore();
+      loadIdentity();
+      loadContacts();
+  
+      // Listen for incoming messages
+      let unlisten: () => void;
+      listen<ChatMessage>("msg-received", (event) => {
+        const msg = event.payload;
+        addLog(`Message received from ${msg.sender_did}`);
+  
+        // If chat is open, append
+        if (selectedContact && selectedContact[0] === msg.sender_did) {
+          chatMessages = [...chatMessages, msg];
+        }
+      }).then((u) => (unlisten = u));
+  
+      // Simulate finding peers for UI demo
+      const interval = setInterval(() => {
+        if (peersCount < 5) peersCount += 1;
+      }, 2000);
+  
+      return () => {
+        clearInterval(interval);
+        if (unlisten) unlisten();
+      };
+    });
+  
+    async function loadMessages(did: string) {
+      try {
+        chatMessages = await invoke("get_messages", { did });
+      } catch (e) {
+        addLog(`Messages Error: ${e}`);
+      }
+    }
+  
+    async function sendMessage() {
+      if (!selectedContact || !newMessage) return;
+      try {
+        await invoke("send_message", {
+          recipientDid: selectedContact[0],
+          content: newMessage,
+          msgTypeStr: nextMessageType,
         });
         await loadMessages(selectedContact[0]);
         newMessage = "";
-    } catch (e) {
+      } catch (e) {
         addLog(`Send Error: ${e}`);
+      }
     }
-  }
-
-  async function markAsDone(msgId: string) {
-    try {
+  
+    async function markAsDone(msgId: string) {
+      try {
         await invoke("update_message_status", { id: msgId, status: "Done" });
         if (selectedContact) await loadMessages(selectedContact[0]);
-    } catch (e) {
+      } catch (e) {
         addLog(`Status Update Error: ${e}`);
+      }
     }
-  }
-
-  async function selectChat(contact: [string, string | null]) { // eslint-disable-line
-    selectedContact = contact;
-    await loadMessages(contact[0]);
-  }
-
-  async function loadContacts() {
-    try {
+  
+      async function selectChat(contact: [string, string | null]) {
+  
+        // eslint-disable-line
+  
+        selectedContact = contact;
+  
+        await loadMessages(contact[0]);
+  
+      }
+  
+    
+  
+      async function openChat(contact: [string, string | null]) {
+  
+        activeTab = "chats";
+  
+        await selectChat(contact);
+  
+      }
+  
+    
+  
+      async function loadContacts() {
+  
+    
+      try {
         contacts = await invoke("get_contacts");
-    } catch (e) {
+      } catch (e) {
         addLog(`Contacts Error: ${e}`);
+      }
     }
-  }
-
-  async function addContact() {
-    if (!newContactDid) return;
-    try {
-        await invoke("add_contact", { did: newContactDid, alias: newContactAlias || "Unknown" });
+  
+    async function addContact() {
+      if (!newContactDid) return;
+      try {
+        await invoke("add_contact", {
+          did: newContactDid,
+          alias: newContactAlias || "Unknown",
+        });
         await loadContacts();
         showAddContact = false;
         newContactDid = "";
         newContactAlias = "";
         addLog(`Contact added: ${newContactAlias}`);
-    } catch (e) {
+      } catch (e) {
         addLog(`Add Contact Error: ${e}`);
-    }
-  }
-
-  async function loadIdentity() {
-    try {
-      const id = await invoke<string | null>("get_identity");
-      if (id) {
-        userIdentity = id;
-        accountCreated = true;
-        addLog(`Identity: Loaded key ${id.substring(0, 8)}...`);
-      } else {
-        userIdentity = null;
-        accountCreated = false;
-        addLog("Identity: No identity found.");
       }
-    } catch (e) {
-      addLog(`Identity Error: ${e}`);
     }
-  }
-
-  async function logout() {
-    userIdentity = null;
-    activeTab = "sos"; // Will show overlay
-    addLog("System: Logged out.");
-  }
-
-  async function registerIdentity() {
-    try {
-      const [pubKey, mnemonic] = await invoke<[string, string]>("create_identity");
-      userIdentity = pubKey;
-      accountCreated = true;
-      generatedMnemonic = mnemonic;
-      addLog(`Identity: Created new key ${userIdentity.substring(0, 8)}...`);
-    } catch (e) {
-      addLog(`Registration Error: ${e}`);
+  
+    async function loadIdentity() {
+      try {
+        const id = await invoke<string | null>("get_identity");
+        if (id) {
+          userIdentity = id;
+          accountCreated = true;
+          userProfileName = await invoke("get_profile_name");
+          addLog(`Identity: Loaded key ${id.substring(0, 8)}... as ${userProfileName}`);
+        } else {
+          userIdentity = null;
+          accountCreated = false;
+          addLog("Identity: No identity found.");
+        }
+      } catch (e) {
+        addLog(`Identity Error: ${e}`);
+      }
     }
-  }
-
+  
+    async function logout() {
+      userIdentity = null;
+      activeTab = "sos"; // Will show overlay
+      addLog("System: Logged out.");
+    }
+  
+    async function registerIdentity() {
+      if (!registrationName) {
+          alert("Please enter a name");
+          return;
+      }
+      try {
+        const [pubKey, mnemonic] = await invoke<[string, string]>("create_identity", { nickname: registrationName });
+        userIdentity = pubKey;
+        userProfileName = registrationName;
+        accountCreated = true;
+        generatedMnemonic = mnemonic;
+        addLog(`Identity: Created new key for ${registrationName}`);
+      } catch (e) {
+        addLog(`Registration Error: ${e}`);
+      }
+    }
   async function recoverIdentity() {
     try {
       const pubKey = await invoke<string>("recover_identity", { phrase: recoveryPhrase });
@@ -294,7 +332,10 @@
       </button>
     </nav>
 
-    <div class="version">v0.1</div>
+    <div class="profile-badge">
+        <div class="avatar small">{userProfileName[0]}</div>
+        <div class="p-name">{userProfileName}</div>
+    </div>
   </aside>
 
   <!-- MAIN CONTENT -->
@@ -496,7 +537,9 @@
                             <div class="did">{did.substring(0, 16)}...</div>
                         </div>
                         <div class="actions">
-                            <button class="icon-btn" title="Message"><MessageSquare size={16}/></button>
+                            <button class="icon-btn" title="Message" onclick={() => openChat([did, alias])}>
+                                <MessageSquare size={16}/>
+                            </button>
                         </div>
                     </div>
                 {/each}
@@ -546,16 +589,19 @@
                 {#if !showRecovery}
                   <div class="no-identity">
                     <p>You don't have an identity yet.</p>
-                    <div class="auth-buttons">
-                      <button class="primary-btn" onclick={registerIdentity}>
-                        <UserPlus size={18} />
-                        <span>Create New Account</span>
-                      </button>
-                      <button class="secondary-btn" onclick={() => showRecovery = true}>
+                    <div class="registration-form">
+                        <input type="text" placeholder="Choose a Nickname" bind:value={registrationName} class="name-input" />
+                        <div class="auth-buttons">
+                        <button class="primary-btn" onclick={registerIdentity}>
+                            <UserPlus size={18} />
+                            <span>Create New Account</span>
+                        </button>
+                        </div>
+                    </div>
+                    <button class="secondary-btn" onclick={() => showRecovery = true} style="margin-top: 20px;">
                         <Fingerprint size={18} />
                         <span>I have a Recovery Phrase</span>
-                      </button>
-                    </div>
+                    </button>
                   </div>
                 {:else}
                   <div class="recovery-form">
@@ -675,10 +721,38 @@
     color: #e74c3c;
   }
 
-  .version {
+  .profile-badge {
     margin-top: auto;
+    padding: 10px;
+    text-align: center;
+    border-top: 1px solid #333;
+    width: 100%;
+  }
+
+  .p-name {
     font-size: 10px;
-    color: #444;
+    margin-top: 5px;
+    color: #888;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .name-input {
+    background: #000;
+    border: 1px solid #333;
+    color: white;
+    padding: 12px;
+    border-radius: 6px;
+    width: 80%;
+    margin-bottom: 10px;
+    text-align: center;
+    font-size: 16px;
+  }
+
+  .registration-form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
 
   /* MAIN AREA */

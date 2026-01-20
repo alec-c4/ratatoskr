@@ -72,29 +72,31 @@ async fn send_message(
         None
     };
 
-    // 1. Create message object
+    // 0. Get our own DID
+    let sender_did = if state.identity_path.exists() {
+        let vault = KeyVault::load_from_file(&state.identity_path)
+            .map_err(|e| format!("Failed to load identity: {}", e))?;
+        vault.public_key_hex()
+    } else {
+        return Err("No identity found".into());
+    };
 
+    // 1. Create message object
     let msg = ChatMessage {
         id: uuid::Uuid::new_v4().to_string(),
-
-        sender_did: "me".to_string(),
-
+        sender_did: sender_did.clone(), // Use real DID
         recipient_did,
-
         msg_type,
-
         status: MessageStatus::Unread,
-
         content: content.into_bytes(),
-
         timestamp: now,
-
         ttl,
-
         schema_id: "text".to_string(),
     };
 
     // 2. Save to local DB
+    // Note: When saving to OUR db, we might want to keep 'sender_did' as our DID so we know we sent it.
+    // Or we rely on the fact that if sender_did == my_did, it's an outgoing message.
     state
         .storage
         .save_message(&msg)
@@ -103,7 +105,8 @@ async fn send_message(
 
     // 3. Send to Network (GossipSub for now)
     let packet_bytes = serde_json::to_vec(&msg).unwrap();
-    let sender = state.network_sender.lock().await;
+    let sender: tokio::sync::MutexGuard<mpsc::Sender<NetworkCommand>> =
+        state.network_sender.lock().await;
     sender
         .send(NetworkCommand::BroadcastSos(packet_bytes))
         .await // Reuse broadcast for now
@@ -164,7 +167,10 @@ async fn get_identity(state: State<'_, AppState>) -> Result<Option<String>, Stri
 }
 
 #[tauri::command]
-async fn create_identity(state: State<'_, AppState>) -> Result<(String, String), String> {
+async fn create_identity(
+    state: State<'_, AppState>,
+    nickname: String,
+) -> Result<(String, String), String> {
     if state.identity_path.exists() {
         return Err("Identity already exists".into());
     }
@@ -174,7 +180,31 @@ async fn create_identity(state: State<'_, AppState>) -> Result<(String, String),
         .save_to_file(&state.identity_path)
         .map_err(|e| e.to_string())?;
 
+    // Save profile info
+    let profile_path = state.identity_path.parent().unwrap().join("profile.json");
+    let profile_data = serde_json::json!({
+        "nickname": nickname,
+        "did": vault.public_key_hex()
+    });
+    fs::write(
+        profile_path,
+        serde_json::to_string_pretty(&profile_data).unwrap(),
+    )
+    .map_err(|e| format!("Failed to save profile: {}", e))?;
+
     Ok((vault.public_key_hex(), mnemonic))
+}
+
+#[tauri::command]
+async fn get_profile_name(state: State<'_, AppState>) -> Result<String, String> {
+    let profile_path = state.identity_path.parent().unwrap().join("profile.json");
+    if profile_path.exists() {
+        let content = fs::read_to_string(profile_path).map_err(|e| e.to_string())?;
+        let json: serde_json::Value = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+        Ok(json["nickname"].as_str().unwrap_or("Unknown").to_string())
+    } else {
+        Ok("Anonymous".to_string())
+    }
 }
 
 #[tauri::command]
@@ -278,7 +308,8 @@ async fn send_sos(
         serde_json::to_vec(&packet).map_err(|e| format!("Serialization Error: {}", e))?;
 
     // 4. Send the command to the network thread
-    let sender = state.network_sender.lock().await;
+    let sender: tokio::sync::MutexGuard<mpsc::Sender<NetworkCommand>> =
+        state.network_sender.lock().await;
     match sender
         .send(NetworkCommand::BroadcastSos(packet_bytes.clone()))
         .await
@@ -300,10 +331,18 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(move |app| {
             let app_handle = app.handle();
-            let config_dir = app_handle
-                .path()
-                .app_config_dir()
-                .expect("Failed to get config dir");
+
+            // Allow overriding config dir via ENV for multi-instance testing
+            let config_dir = if let Ok(custom_path) = std::env::var("RATATOSKR_CONFIG_DIR") {
+                println!("Using custom config dir: {}", custom_path);
+                PathBuf::from(custom_path)
+            } else {
+                app_handle
+                    .path()
+                    .app_config_dir()
+                    .expect("Failed to get config dir")
+            };
+
             fs::create_dir_all(&config_dir).expect("Failed to create config dir");
             let identity_path = config_dir.join("identity.key");
             let db_path = config_dir.join("ratatoskr.db");
@@ -410,6 +449,7 @@ pub fn run() {
             ping,
             send_sos,
             get_identity,
+            get_profile_name,
             create_identity,
             recover_identity,
             delete_identity,
