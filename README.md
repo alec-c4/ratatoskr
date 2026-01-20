@@ -11,11 +11,15 @@
 
 ## 📜 Documentation & Governance
 
-- **[Concept & Vision](docs/CONCEPT.md):** Detailed overview of features (Black Box SOS, Plague Protocol).
-- **[Architecture](docs/ARCHITECTURE.md):** Technical design (P2P, Encryption, DHT).
-- **[Ethics](ETHICS.md):** Our stance on surveillance and human rights.
-- **[Foundation Charter](FOUNDATION.md):** Governance principles.
-- **[Trademark Policy](TRADEMARK.md):** Rules for using the brand.
+- **[Concept & Vision](docs/concept.md):** Detailed overview of features (Black Box SOS, Plague Protocol).
+- **[Architecture](docs/architecture.md):** Technical design (P2P, Encryption, DHT).
+- **[Roadmap](docs/roadmap.md):** Granular implementation tasks and engineering goals.
+- **[Milestones](docs/milestones.md):** Project release timeline.
+- **[Project Structure](docs/structure.md):** Codebase decomposition and directory map.
+- **[Ethics](docs/governance/ethics.md):** Our stance on surveillance and human rights.
+- **[Foundation Charter](docs/governance/foundation.md):** Governance principles.
+- **[Trademark Policy](docs/governance/trademark.md):** Rules for using the brand.
+- **[SOS Governance](docs/governance/sos.md):** Verification protocol for aid organizations.
 
 ## 🛠️ Features
 
@@ -56,12 +60,12 @@
 
 ## 🤝 Contributing
 
-We welcome contributions that align with our [Mission](FOUNDATION.md).
-Please read our [Architecture](docs/ARCHITECTURE.md) guide before submitting PRs.
+We welcome contributions that align with our [Mission](docs/governance/foundation.md). 
+Please read our [Architecture](docs/architecture.md) guide before submitting PRs.
 
 ## 📄 License
 
 Code is licensed under the **GNU Affero General Public License v3.0** (AGPL-3.0).
 See [LICENSE](LICENSE) for details.
 
-The "Ratatoskr" name and logo are trademarks. See [TRADEMARK.md](TRADEMARK.md).
+The "Ratatoskr" name and logo are trademarks. See [TRADEMARK.md](docs/governance/trademark.md).
