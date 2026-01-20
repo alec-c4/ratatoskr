@@ -62,6 +62,9 @@ pub async fn build_swarm(
                 .heartbeat_interval(Duration::from_secs(1))
                 .validation_mode(gossipsub::ValidationMode::Strict)
                 .message_id_fn(message_id_fn)
+                .mesh_n_low(1)
+                .mesh_n_high(4)
+                .mesh_outbound_min(1)
                 .build()
                 .map_err(io::Error::other)?;
 
