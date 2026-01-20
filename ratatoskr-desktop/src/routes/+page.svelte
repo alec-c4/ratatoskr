@@ -96,13 +96,43 @@
         if (peersCount < 5) peersCount += 1;
       }, 2000);
   
-      return () => {
-        clearInterval(interval);
-        if (unlisten) unlisten();
-      };
-    });
+          return () => {
   
-    async function loadMessages(did: string) {
+            clearInterval(interval);
+  
+            if (unlisten) unlisten();
+  
+          };
+  
+        });
+  
+      
+  
+        // UI Garbage Collector: Remove expired messages from view in real-time
+  
+        $effect(() => {
+  
+          const timer = setInterval(() => {
+  
+              const now = Date.now() / 1000;
+  
+              if (chatMessages.length > 0) {
+  
+                  chatMessages = chatMessages.filter(msg => !msg.ttl || msg.ttl > now);
+  
+              }
+  
+          }, 1000);
+  
+          return () => clearInterval(timer);
+  
+        });
+  
+      
+  
+        async function loadMessages(did: string) {
+  
+      
       try {
         chatMessages = await invoke("get_messages", { did });
       } catch (e) {
