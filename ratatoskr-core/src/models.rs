@@ -57,8 +57,9 @@ pub struct ChatMessage {
     pub status: MessageStatus,
     pub content: Vec<u8>, // Encrypted blob
     pub timestamp: u64,
-    pub ttl: Option<u64>,  // Optional expiry timestamp
-    pub schema_id: String, // For protocol extensibility
+    pub ttl: Option<u64>,            // Optional expiry timestamp
+    pub schema_id: String,           // For protocol extensibility
+    pub reply_to_id: Option<String>, // ID of the message being replied to
 }
 
 #[derive(Serialize, Deserialize, Debug)]

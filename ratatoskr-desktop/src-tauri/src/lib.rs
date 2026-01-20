@@ -46,6 +46,8 @@ async fn send_message(
     content: String,
 
     msg_type_str: String,
+
+    reply_to_id: Option<String>,
 ) -> Result<(), String> {
     use ratatoskr_core::models::{ChatMessage, MessageStatus, MessageType};
 
@@ -92,6 +94,7 @@ async fn send_message(
         timestamp: now,
         ttl,
         schema_id: "text".to_string(),
+        reply_to_id,
     };
 
     // 2. Save to local DB

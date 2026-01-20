@@ -82,15 +82,17 @@ impl Storage {
         let msg_type = serde_json::to_string(&msg.msg_type).unwrap();
 
         sqlx::query(
-            "INSERT INTO messages (id, sender_did, content, timestamp, status, msg_type, ttl) VALUES (?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO messages (id, sender_did, recipient_did, content, timestamp, status, msg_type, ttl, reply_to_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
         .bind(&msg.id)
         .bind(&msg.sender_did)
+        .bind(&msg.recipient_did)
         .bind(&msg.content)
         .bind(msg.timestamp as i64)
         .bind(status)
         .bind(msg_type)
         .bind(msg.ttl.map(|t| t as i64))
+        .bind(&msg.reply_to_id)
         .execute(&self.pool)
         .await?;
         Ok(())
@@ -98,32 +100,60 @@ impl Storage {
 
     pub async fn list_messages(
         &self,
+
         contact_did: &str,
     ) -> Result<Vec<crate::models::ChatMessage>, StorageError> {
         use sqlx::Row;
-        let recs = sqlx::query("SELECT * FROM messages WHERE sender_did = ? OR (sender_did = 'me' AND id IN (SELECT id FROM messages WHERE id = id)) ORDER BY timestamp ASC")
-            .bind(contact_did)
-            .fetch_all(&self.pool)
-            .await?;
+
+        // Select messages where (sender is contact) OR (recipient is contact)
+
+        // This covers Incoming (from contact to me) and Outgoing (from me to contact)
+
+        let recs = sqlx::query(
+
+                "SELECT * FROM messages WHERE sender_did = ? OR recipient_did = ? ORDER BY timestamp ASC"
+
+            )
+
+                .bind(contact_did)
+
+                .bind(contact_did)
+
+                .fetch_all(&self.pool)
+
+                .await?;
 
         Ok(recs
             .into_iter()
             .map(|r| {
                 let status_str: String = r.get("status");
+
                 let type_str: String = r.get("msg_type");
 
                 crate::models::ChatMessage {
                     id: r.get("id"),
+
                     sender_did: r.get("sender_did"),
-                    recipient_did: "me".to_string(),
+
+                    recipient_did: r
+                        .get::<Option<String>, _>("recipient_did")
+                        .unwrap_or("me".to_string()),
+
                     msg_type: serde_json::from_str(&type_str)
                         .unwrap_or(crate::models::MessageType::Direct),
+
                     status: serde_json::from_str(&status_str)
                         .unwrap_or(crate::models::MessageStatus::Done),
+
                     content: r.get("content"),
+
                     timestamp: r.get::<i64, _>("timestamp") as u64,
+
                     ttl: r.get::<Option<i64>, _>("ttl").map(|t| t as u64),
+
                     schema_id: "raw".to_string(),
+
+                    reply_to_id: r.get("reply_to_id"),
                 }
             })
             .collect())

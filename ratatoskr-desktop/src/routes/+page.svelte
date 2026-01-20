@@ -55,22 +55,25 @@
     let newContactAlias = $state("");
   
     // Chat State
-    interface ChatMessage {
-      id: string;
-      sender_did: string;
-      content: number[];
-      timestamp: number;
-      msg_type?: string;
-      status?: string;
-      ttl?: number;
-    }
-  
-    let selectedContact = $state<[string, string | null] | null>(null);
-    let chatMessages = $state<ChatMessage[]>([]);
-    let newMessage = $state("");
-    let nextMessageType = $state("Direct");
-  
-    // Initialization
+      interface ChatMessage {
+        id: string;
+        sender_did: string;
+        content: number[];
+        timestamp: number;
+        msg_type?: string;
+        status?: string;
+        ttl?: number;
+        reply_to_id?: string;
+      }
+    
+      let selectedContact = $state<[string, string | null] | null>(null);
+      let chatMessages = $state<ChatMessage[]>([]);
+      let newMessage = $state("");
+      let nextMessageType = $state("Direct");
+      let replyToMessage = $state<ChatMessage | null>(null);
+    
+      // Initialization
+    
     onMount(() => {
       checkCore();
       loadIdentity();
@@ -107,22 +110,23 @@
       }
     }
   
-    async function sendMessage() {
-      if (!selectedContact || !newMessage) return;
-      try {
-        await invoke("send_message", {
-          recipientDid: selectedContact[0],
-          content: newMessage,
-          msgTypeStr: nextMessageType,
-        });
-        await loadMessages(selectedContact[0]);
-        newMessage = "";
-      } catch (e) {
-        addLog(`Send Error: ${e}`);
+      async function sendMessage() {
+        if (!selectedContact || !newMessage) return;
+        try {
+          await invoke("send_message", {
+            recipientDid: selectedContact[0],
+            content: newMessage,
+            msgTypeStr: nextMessageType,
+            replyToId: replyToMessage ? replyToMessage.id : null,
+          });
+          await loadMessages(selectedContact[0]);
+          newMessage = "";
+          replyToMessage = null; // Clear reply
+        } catch (e) {
+          addLog(`Send Error: ${e}`);
+        }
       }
-    }
-  
-    async function markAsDone(msgId: string) {
+        async function markAsDone(msgId: string) {
       try {
         await invoke("update_message_status", { id: msgId, status: "Done" });
         if (selectedContact) await loadMessages(selectedContact[0]);
@@ -459,17 +463,25 @@
                 {#each chatMessages as msg (msg.id)}
                   <div
                     class="msg-bubble"
-                    class:own={msg.sender_did === 'me'}
+                    class:own={msg.sender_did === userIdentity}
                     class:ephemeral={msg.msg_type === 'Ephemeral'}
                   >
                     <div class="msg-header">
                       <span class="type-tag">{msg.msg_type}</span>
-                      {#if msg.status !== 'Done'}
-                        <button class="done-btn" onclick={() => markAsDone(msg.id)} title="Mark as Done"
-                          >✓</button
-                        >
-                      {/if}
+                      <div class="msg-actions">
+                        <button class="reply-btn" onclick={() => replyToMessage = msg} title="Reply">↩</button>
+                        {#if msg.status !== 'Done'}
+                            <button class="done-btn" onclick={() => markAsDone(msg.id)} title="Mark as Done">✓</button>
+                        {/if}
+                      </div>
                     </div>
+                    
+                    {#if msg.reply_to_id}
+                        <div class="reply-quote">
+                            Replying to message...
+                        </div>
+                    {/if}
+
                     <div class="msg-content">
                       {new TextDecoder().decode(new Uint8Array(msg.content))}
                     </div>
@@ -492,6 +504,12 @@
                   sendMessage();
                 }}
               >
+                {#if replyToMessage}
+                    <div class="reply-preview">
+                        <span>Replying to message...</span>
+                        <button onclick={() => replyToMessage = null}>x</button>
+                    </div>
+                {/if}
                 <select bind:value={nextMessageType} class="type-select">
                   <option value="Direct">Direct</option>
                   <option value="Ephemeral">Ephemeral (1m)</option>
@@ -1143,9 +1161,45 @@
     padding: 20px;
     background: #0a0a0a;
     display: flex;
+    flex-direction: column;
     gap: 10px;
     border-top: 1px solid #222;
   }
+  
+  .reply-preview {
+    background: #222;
+    padding: 5px 10px;
+    border-left: 3px solid #27ae60;
+    font-size: 11px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #aaa;
+  }
+
+  .reply-quote {
+    font-size: 10px;
+    border-left: 2px solid #555;
+    padding-left: 5px;
+    margin-bottom: 5px;
+    opacity: 0.6;
+  }
+
+  .msg-actions {
+    display: flex;
+    gap: 5px;
+  }
+
+  .reply-btn {
+    background: transparent;
+    border: none;
+    color: #aaa;
+    cursor: pointer;
+    font-weight: bold;
+    padding: 0 4px;
+  }
+  
+  .reply-btn:hover { color: #fff; }
 
   .input-area input {
     flex: 1;
