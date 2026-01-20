@@ -22,6 +22,17 @@
   } from "lucide-svelte";
   import { onMount } from "svelte";
 
+  // Interfaces
+  interface ChatMessage {
+    id: string;
+    sender_did: string;
+    content: number[];
+    timestamp: number;
+    msg_type?: string;
+    status?: string;
+    ttl?: number;
+  }
+
   // State
   let coreStatus = $state("Initializing...");
   let peersCount = $state(0);
@@ -43,62 +54,69 @@
   let newContactAlias = $state("");
 
   // Chat State
-  interface ChatMessage {
-    id: string;
-    sender_did: string;
-    content: number[];
-    timestamp: number;
-  }
-
   let selectedContact = $state<[string, string | null] | null>(null);
   let chatMessages = $state<ChatMessage[]>([]);
   let newMessage = $state("");
+  let nextMessageType = $state("Direct");
 
   // Initialization
   onMount(() => {
     checkCore();
     loadIdentity();
     loadContacts();
-    
+
     // Listen for incoming messages
     let unlisten: () => void;
     listen<ChatMessage>("msg-received", (event) => {
-        const msg = event.payload;
-        addLog(`Message received from ${msg.sender_did}`);
-        
-        // If chat is open, append
-        if (selectedContact && selectedContact[0] === msg.sender_did) {
-            chatMessages = [...chatMessages, msg];
-        }
-    }).then(u => unlisten = u);
+      const msg = event.payload;
+      addLog(`Message received from ${msg.sender_did}`);
+
+      // If chat is open, append
+      if (selectedContact && selectedContact[0] === msg.sender_did) {
+        chatMessages = [...chatMessages, msg];
+      }
+    }).then((u) => (unlisten = u));
 
     // Simulate finding peers for UI demo
     const interval = setInterval(() => {
-        if (peersCount < 5) peersCount += 1;
+      if (peersCount < 5) peersCount += 1;
     }, 2000);
-    
+
     return () => {
-        clearInterval(interval);
-        if (unlisten) unlisten();
+      clearInterval(interval);
+      if (unlisten) unlisten();
     };
   });
 
   async function loadMessages(did: string) {
     try {
-        chatMessages = await invoke("get_messages", { did });
+      chatMessages = await invoke("get_messages", { did });
     } catch (e) {
-        addLog(`Messages Error: ${e}`);
+      addLog(`Messages Error: ${e}`);
     }
   }
 
-  async function sendMessage() { // eslint-disable-line
+  async function sendMessage() {
     if (!selectedContact || !newMessage) return;
     try {
-        await invoke("send_message", { recipientDid: selectedContact[0], content: newMessage });
+        await invoke("send_message", { 
+            recipientDid: selectedContact[0], 
+            content: newMessage,
+            // To be added to backend send_message call
+        });
         await loadMessages(selectedContact[0]);
         newMessage = "";
     } catch (e) {
         addLog(`Send Error: ${e}`);
+    }
+  }
+
+  async function markAsDone(msgId: string) {
+    try {
+        await invoke("update_message_status", { id: msgId, status: "Done" });
+        if (selectedContact) await loadMessages(selectedContact[0]);
+    } catch (e) {
+        addLog(`Status Update Error: ${e}`);
     }
   }
 
@@ -363,6 +381,90 @@
                 <div class="log-line opacity-50">System ready. Waiting for input...</div>
               {/if}
             </div>
+          </div>
+        </div>
+      {:else if activeTab === 'chats'}
+        <div class="chat-layout">
+          <div class="chat-sidebar">
+            <div class="section-header">Recent Chats</div>
+            <div class="chat-list">
+              {#each contacts as contact (contact[0])}
+                <button
+                  class="chat-item"
+                  class:active={selectedContact?.[0] === contact[0]}
+                  onclick={() => selectChat(contact)}
+                >
+                  <div class="avatar small">{contact[1]?.[0] || '?'}</div>
+                  <div class="info">
+                    <div class="name">{contact[1] || 'Unknown'}</div>
+                    <div class="last-msg">No messages yet</div>
+                  </div>
+                </button>
+              {/each}
+              {#if contacts.length === 0}
+                <p class="empty-state">No contacts found.</p>
+              {/if}
+            </div>
+          </div>
+
+          <div class="chat-main">
+            {#if selectedContact}
+              <header class="chat-header">
+                <div class="avatar small">{selectedContact[1]?.[0] || '?'}</div>
+                <span>{selectedContact[1]}</span>
+                <span class="did-badge">{selectedContact[0].substring(0, 12)}...</span>
+              </header>
+              <div class="message-area">
+                {#each chatMessages as msg (msg.id)}
+                  <div
+                    class="msg-bubble"
+                    class:own={msg.sender_did === 'me'}
+                    class:ephemeral={msg.msg_type === 'Ephemeral'}
+                  >
+                    <div class="msg-header">
+                      <span class="type-tag">{msg.msg_type}</span>
+                      {#if msg.status !== 'Done'}
+                        <button class="done-btn" onclick={() => markAsDone(msg.id)} title="Mark as Done"
+                          >✓</button
+                        >
+                      {/if}
+                    </div>
+                    <div class="msg-content">
+                      {new TextDecoder().decode(new Uint8Array(msg.content))}
+                    </div>
+                    <div class="time">
+                      {msg.status} • {new Date(msg.timestamp * 1000).toLocaleTimeString()}
+                      {#if msg.ttl}
+                        • Exp: {new Date(msg.ttl * 1000).toLocaleTimeString()}
+                      {/if}
+                    </div>
+                  </div>
+                {/each}
+                {#if chatMessages.length === 0}
+                  <div class="empty-state">Secure connection established. Start typing...</div>
+                {/if}
+              </div>
+              <form
+                class="input-area"
+                onsubmit={(e) => {
+                  e.preventDefault();
+                  sendMessage();
+                }}
+              >
+                <select bind:value={nextMessageType} class="type-select">
+                  <option value="Direct">Direct</option>
+                  <option value="Ephemeral">Ephemeral (1m)</option>
+                  <option value="Transactional">Transactional</option>
+                </select>
+                <input placeholder="Type a secure message..." bind:value={newMessage} />
+                <button type="submit">Send</button>
+              </form>
+            {:else}
+              <div class="placeholder-view">
+                <MessageSquare size={48} />
+                <p>Select a contact to start chatting</p>
+              </div>
+            {/if}
           </div>
         </div>
       {:else if activeTab === 'contacts'}
@@ -904,6 +1006,49 @@
     align-self: flex-start;
     font-size: 14px;
     position: relative;
+    border: 1px solid #333;
+  }
+
+  .msg-bubble.ephemeral {
+    border-color: #f1c40f55;
+    background: #2c2c00;
+  }
+
+  .msg-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    margin-bottom: 5px;
+    opacity: 0.7;
+  }
+
+  .type-tag {
+    background: #333;
+    padding: 1px 4px;
+    border-radius: 3px;
+    text-transform: uppercase;
+  }
+
+  .done-btn {
+    background: transparent;
+    border: none;
+    color: #27ae60;
+    cursor: pointer;
+    font-weight: bold;
+    padding: 0 4px;
+  }
+
+  .done-btn:hover {
+    transform: scale(1.2);
+  }
+
+  .type-select {
+    background: #111;
+    color: #888;
+    border: 1px solid #333;
+    border-radius: 4px;
+    font-size: 11px;
+    padding: 0 5px;
   }
 
   .msg-bubble.own {

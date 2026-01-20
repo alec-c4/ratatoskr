@@ -62,9 +62,10 @@ pub async fn build_swarm(
                 .heartbeat_interval(Duration::from_secs(1))
                 .validation_mode(gossipsub::ValidationMode::Strict)
                 .message_id_fn(message_id_fn)
+                .mesh_outbound_min(0)
                 .mesh_n_low(1)
+                .mesh_n(2)
                 .mesh_n_high(4)
-                .mesh_outbound_min(1)
                 .build()
                 .map_err(io::Error::other)?;
 
@@ -125,7 +126,10 @@ pub async fn run_network_node(
                         swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
                         swarm.behaviour_mut().kademlia.add_address(&peer_id, multiaddr.clone());
                         // Explicitly dial to establish connection for GossipSub
-                        let _ = swarm.dial(multiaddr);
+                        match swarm.dial(multiaddr.clone()) {
+                            Ok(_) => println!("Dialing {:?}...", multiaddr),
+                            Err(e) => println!("Failed to dial {:?}: {:?}", multiaddr, e),
+                        }
                     }
                 },
                 SwarmEvent::Behaviour(RatatoskrBehaviorEvent::Kademlia(kad::Event::OutboundQueryProgressed {
@@ -160,8 +164,22 @@ pub async fn run_network_node(
             command = command_receiver.recv() => match command {
                 Some(NetworkCommand::BroadcastSos(data)) => {
                     println!("Network: Broadcasting SOS packet ({} bytes)", data.len());
-                    if let Err(e) = swarm.behaviour_mut().gossipsub.publish(sos_topic.clone(), data) {
-                        println!("Publish error: {:?}", e);
+                    // Retry logic for SOS (critical message)
+                    for i in 0..5 {
+                        match swarm.behaviour_mut().gossipsub.publish(sos_topic.clone(), data.clone()) {
+                            Ok(_) => {
+                                println!("SOS Broadcast successful.");
+                                break;
+                            },
+                            Err(gossipsub::PublishError::InsufficientPeers) => {
+                                println!("Attempt {}: Insufficient peers, retrying in 2s...", i + 1);
+                                tokio::time::sleep(Duration::from_secs(2)).await;
+                            },
+                            Err(e) => {
+                                println!("Publish error: {:?}", e);
+                                break;
+                            }
+                        }
                     }
                 },
                 Some(NetworkCommand::Dial(addr)) => {

@@ -37,26 +37,60 @@ async fn get_messages(
 }
 
 #[tauri::command]
+
 async fn send_message(
     state: State<'_, AppState>,
+
     recipient_did: String,
+
     content: String,
+
+    msg_type_str: String,
 ) -> Result<(), String> {
     use ratatoskr_core::models::{ChatMessage, MessageStatus, MessageType};
 
+    let msg_type = match msg_type_str.as_str() {
+        "Ephemeral" => MessageType::Ephemeral,
+
+        "Transactional" => MessageType::Transactional,
+
+        "Feed" => MessageType::Feed,
+
+        _ => MessageType::Direct,
+    };
+
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    // Calculate TTL (60 seconds for Ephemeral messages for testing)
+
+    let ttl = if matches!(msg_type, MessageType::Ephemeral) {
+        Some(now + 60)
+    } else {
+        None
+    };
+
     // 1. Create message object
+
     let msg = ChatMessage {
         id: uuid::Uuid::new_v4().to_string(),
-        sender_did: "me".to_string(), // In real app: our actual DID
+
+        sender_did: "me".to_string(),
+
         recipient_did,
-        msg_type: MessageType::Direct,
+
+        msg_type,
+
         status: MessageStatus::Unread,
-        content: content.into_bytes(), // UNENCRYPTED for initial test (to be fixed next)
-        timestamp: SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs(),
-        ttl: None,
+
+        content: content.into_bytes(),
+
+        timestamp: now,
+
+        ttl,
+
         schema_id: "text".to_string(),
     };
 
@@ -75,6 +109,27 @@ async fn send_message(
         .await // Reuse broadcast for now
         .map_err(|e| e.to_string())?;
 
+    Ok(())
+}
+
+#[tauri::command]
+async fn update_message_status(
+    state: State<'_, AppState>,
+    id: String,
+    status: String,
+) -> Result<(), String> {
+    use ratatoskr_core::models::MessageStatus;
+    let status_enum = match status.as_str() {
+        "Unread" => MessageStatus::Unread,
+        "ActionRequired" => MessageStatus::ActionRequired,
+        _ => MessageStatus::Done,
+    };
+
+    state
+        .storage
+        .update_message_status(&id, status_enum)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -268,6 +323,7 @@ pub fn run() {
             // Channel for Network -> UI events
             let (event_tx, mut event_rx) = mpsc::channel(32);
             let app_handle_clone = app_handle.clone();
+            let storage_for_events = storage_arc.clone();
 
             // Event Loop: Network -> UI
             tauri::async_runtime::spawn(async move {
@@ -287,7 +343,7 @@ pub fn run() {
                             {
                                 // 2. Save to DB
                                 msg.status = ratatoskr_core::models::MessageStatus::Unread; // Mark as unread
-                                if let Err(e) = storage_arc.save_message(&msg).await {
+                                if let Err(e) = storage_for_events.save_message(&msg).await {
                                     eprintln!("Failed to save incoming message: {}", e);
                                 }
 
@@ -295,6 +351,22 @@ pub fn run() {
                                 let _ = app_handle_clone.emit("msg-received", msg);
                             }
                         }
+                    }
+                }
+            });
+
+            // Garbage Collector: Periodically delete expired messages
+            let storage_gc = storage_arc.clone();
+            tauri::async_runtime::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
+                loop {
+                    interval.tick().await;
+                    match storage_gc.cleanup_expired_messages().await {
+                        Ok(count) if count > 0 => {
+                            println!("GC: Deleted {} expired messages", count)
+                        }
+                        Err(e) => eprintln!("GC Error: {}", e),
+                        _ => {}
                     }
                 }
             });
@@ -345,7 +417,8 @@ pub fn run() {
             add_contact,
             get_contacts,
             get_messages,
-            send_message
+            send_message,
+            update_message_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
