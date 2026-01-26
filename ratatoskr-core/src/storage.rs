@@ -57,6 +57,23 @@ impl Storage {
         Ok(())
     }
 
+    pub async fn update_contact(&self, did: &str, alias: &str) -> Result<(), StorageError> {
+        sqlx::query("UPDATE contacts SET alias = ? WHERE did = ?")
+            .bind(alias)
+            .bind(did)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn delete_contact(&self, did: &str) -> Result<(), StorageError> {
+        sqlx::query("DELETE FROM contacts WHERE did = ?")
+            .bind(did)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     pub async fn list_contacts(&self) -> Result<Vec<(String, Option<String>)>, StorageError> {
         use sqlx::Row;
         let recs = sqlx::query("SELECT did, alias FROM contacts WHERE trust_level > 0")

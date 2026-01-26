@@ -156,6 +156,30 @@ async fn add_contact(state: State<'_, AppState>, did: String, alias: String) -> 
 }
 
 #[tauri::command]
+async fn update_contact(
+    state: State<'_, AppState>,
+    did: String,
+    alias: String,
+) -> Result<(), String> {
+    state
+        .storage
+        .update_contact(&did, &alias)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn delete_contact(state: State<'_, AppState>, did: String) -> Result<(), String> {
+    state
+        .storage
+        .delete_contact(&did)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
 async fn get_contacts(state: State<'_, AppState>) -> Result<Vec<(String, Option<String>)>, String> {
     let contacts = state
         .storage
@@ -519,6 +543,8 @@ pub fn run() {
             delete_identity,
             export_backup,
             add_contact,
+            update_contact,
+            delete_contact,
             get_contacts,
             get_messages,
             send_message,

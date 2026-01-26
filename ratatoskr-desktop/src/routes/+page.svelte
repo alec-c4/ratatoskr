@@ -112,6 +112,7 @@
       replyToMessage = null;
     } catch (e) {
       addLog(`Send Error: ${e}`);
+      alert(`Failed to send message: ${e}`);
     }
   }
 
@@ -156,6 +157,30 @@
       addLog(`Contact added: ${newContactAlias}`);
     } catch (e) {
       addLog(`Add Contact Error: ${e}`);
+      alert(`Failed to add contact: ${e}`);
+    }
+  }
+
+  async function updateContact(did: string, alias: string) {
+    try {
+      await invoke("update_contact", { did, alias });
+      await loadContacts();
+      addLog(`Contact updated: ${alias}`);
+    } catch (e) {
+      addLog(`Update Contact Error: ${e}`);
+      alert(`Failed to update contact: ${e}`);
+    }
+  }
+
+  async function deleteContact(did: string) {
+    if (!confirm("Are you sure you want to delete this contact?")) return;
+    try {
+      await invoke("delete_contact", { did });
+      await loadContacts();
+      addLog(`Contact deleted: ${did}`);
+    } catch (e) {
+      addLog(`Delete Contact Error: ${e}`);
+      alert(`Failed to delete contact: ${e}`);
     }
   }
 
@@ -337,6 +362,8 @@
             bind:newContactDid={newContactDid}
             bind:newContactAlias={newContactAlias}
             onAddContact={addContact}
+            onUpdateContact={updateContact}
+            onDeleteContact={deleteContact}
             onOpenChat={openChat}
             onToggleAdd={() => showAddContact = !showAddContact}
         />
