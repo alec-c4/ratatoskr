@@ -71,7 +71,26 @@ A single physical server or device can perform multiple roles, but logically the
 
 ---
 
-## 4. Trust & Access Control (Volunteers & Reputation)
+## 4. Cryptography Layer (Signal Protocol Implementation)
+
+Ratatoskr implements a custom Rust port of the Signal Protocol for End-to-End Encryption (E2EE).
+
+### A. Key Exchange (X3DH)
+Extended Triple Diffie-Hellman (X3DH) is used to establish a shared secret between two parties who may not be online simultaneously.
+- **Identity Keys (IK):** Long-term Ed25519 (Signing) and X25519 (DH) keys.
+- **Signed PreKeys (SPK):** Medium-term keys signed by the Identity Key.
+- **One-Time PreKeys (OPK):** Ephemeral keys used once per session setup.
+- **Bundles:** `PreKeyBundle`s are published to the DHT (`bundle:<did>`) for asynchronous discovery.
+
+### B. Session Management (Double Ratchet)
+Once a shared secret is established, the Double Ratchet algorithm manages message encryption.
+- **Diffie-Hellman Ratchet:** Updates shared secret when keys are exchanged.
+- **Symmetric-Key Ratchet:** Derives new message keys for each message sent/received.
+- **Properties:** Provides Forward Secrecy (past messages secure if key stolen) and Post-Compromise Security (future messages secure after key update).
+
+---
+
+## 5. Trust & Access Control (Volunteers & Reputation)
 
 We use a **Web of Trust (WoT)** model anchored by Organizations and a decentralized reputation system ("Plague Protocol").
 
@@ -91,7 +110,7 @@ To manage spam and malicious actors without central authority:
 
 ---
 
-## 10. Identity & Contacts
+## 6. Identity & Contacts
 
 ### A. Contact Management
 - **Exchange Protocol:**
@@ -123,7 +142,7 @@ We use the **W3C Verifiable Credentials** standard.
 
 ---
 
-## 11. Storage Layer (User Device)
+## 7. Storage Layer (User Device)
 
 - **Engine:** SQLite (via SQLx).
 - **Encryption:** SQLCipher or Application-level AES-GCM encryption of database rows.
@@ -159,7 +178,7 @@ Messages are not just text. They are structured objects defined by a Schema ID.
 
 ---
 
-## 9. Advanced Capabilities
+## 8. Advanced Capabilities
 
 ### A. Multi-Device Sync (CRDT)
 To support a seamless experience across mobile and desktop:

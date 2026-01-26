@@ -43,10 +43,10 @@
     - [x] UI: Two-pane chat, Replies, Self-messages.
     - [x] Inbox Zero: TTL auto-deletion (backend + UI).
 - [ ] **Advanced Cryptography (Double Ratchet)**
-    - [ ] Implement **X3DH** (Extended Triple Diffie-Hellman) for initial key exchange.
+    - [x] Implement **X3DH** (Extended Triple Diffie-Hellman) for initial key exchange.
     - [x] Implement **Double Ratchet** session management (root key, chain keys).
     - [x] Store session states securely in SQLite (using `sqlcipher` or application-level encryption).
-    - [ ] Header Encryption (hide routing metadata).
+    - [x] Header Encryption (hide routing metadata).
 - [ ] **Inbox Zero Logic**
     - [ ] **Semantic Actions:**
         - [ ] Implement `ActionRequired` pinning logic.

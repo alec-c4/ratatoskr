@@ -23,12 +23,14 @@ This document maps the logical architecture to the physical code structure of th
 - **`models.rs`**: Data structures exchanged over the network and stored in DB.
     - `ChatMessage`: The central object (includes `msg_type`, `ttl`, `reply_to`).
     - `SosPayload`: Emergency signal structure.
+    - `EncryptedMessage`: Protocol buffer for X3DH and Double Ratchet payloads.
 - **`network.rs`**: The P2P Networking Stack (`libp2p`).
     - `RatatoskrBehavior`: Combines `GossipSub` (Chat/SOS) and `Kademlia` (DHT Routing).
-    - `NetworkCommand/Event`: Channels for async communication with the UI/Server.
-- **`crypto.rs`**: Cryptographic primitives.
-    - ECIES (Anonymous Encryption) implementation.
-    - *Future:* Double Ratchet session management.
+    - `NetworkCommand/Event`: Channels for async communication. Supports Direct Messages and Bundle Exchange.
+- **`crypto.rs`**: Cryptographic primitives (ECIES, legacy).
+- **`ratchet.rs`**: Double Ratchet implementation (Diffie-Hellman + Hash Ratchets).
+- **`x3dh.rs`**: Extended Triple Diffie-Hellman key exchange logic.
+- **`messaging.rs`**: High-level service orchestrating encryption, session management, and storage.
 - **`key_vault.rs`**: Identity Management.
     - Ed25519 Key generation.
     - BIP-39 Mnemonic recovery logic.
@@ -36,7 +38,7 @@ This document maps the logical architecture to the physical code structure of th
 - **`storage.rs`**: Persistence Layer.
     - SQLite connection pool (`sqlx`).
     - `GarbageCollector`: Logic for deleting expired TTL messages.
-    - CRUD operations for Contacts and Messages.
+    - CRUD operations for Contacts, Messages, Sessions, and PreKey Bundles.
 - **`access_control.rs`**: Authorization.
     - `VolunteerCredential` definitions.
     - *Future:* Reputation system logic ("Plague Protocol").

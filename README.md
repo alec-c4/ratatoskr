@@ -68,4 +68,5 @@ Please read our [Architecture](docs/architecture.md) guide before submitting PRs
 Code is licensed under the **GNU Affero General Public License v3.0** (AGPL-3.0).
 See [LICENSE](LICENSE) for details.
 
-The "Ratatoskr" name and logo are trademarks. See [TRADEMARK.md](docs/governance/trademark.md).
+The "Ratatoskr" name and logo are trademarks. See [Trademark Policy](docs/governance/trademark.md).
+See [NOTICE](docs/notice.md) for attribution.

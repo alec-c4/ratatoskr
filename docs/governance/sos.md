@@ -16,7 +16,7 @@ To have a public key included in the Ratatoskr trusted bundle, an organization m
 The organization must submit a public request (e.g., GitHub Issue or Foundation Form) including:
 - Official website and physical headquarters address.
 - Point of contact (PGP signed).
-- Stated mission (must align with [Foundation Charter](FOUNDATION.md)).
+- Stated mission (must align with [Foundation Charter](foundation.md)).
 
 ### Step 2: Identity Verification
 The Ratatoskr Foundation (or a delegated Trust Committee) verifies identity via:

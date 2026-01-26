@@ -27,10 +27,10 @@ Turning the app from a signal emitter into a user-aware client.
 A fully functional messenger.
 
 - **Goals:**
-    - [ ] Signal Protocol (Double Ratchet) implementation.
-    - [ ] SQLite integration for message history.
+    - [x] Signal Protocol (Double Ratchet) implementation.
+    - [x] SQLite integration for message history.
     - [ ] "Blind Mailbox" logic for offline message storage.
-    - [ ] Basic text chat UI.
+    - [x] Basic text chat UI.
 - **Success Criteria:** User A sends a message to User B while B is offline. User B comes online later and receives the message.
 
 ## 🛡️ Milestone 4: The "Bunker" Update (v0.4.0)
