@@ -1,8 +1,10 @@
+use crate::protocol::{MailboxCodec, MailboxProtocol};
 use libp2p::futures::StreamExt;
 use libp2p::identity::Keypair;
 use libp2p::swarm::SwarmEvent;
 use libp2p::{
-    gossipsub, kad, mdns, noise, swarm::NetworkBehaviour, yamux, Multiaddr, Swarm, SwarmBuilder,
+    gossipsub, kad, mdns, noise, request_response, swarm::NetworkBehaviour, yamux, Multiaddr,
+    Swarm, SwarmBuilder,
 };
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -29,6 +31,15 @@ pub enum NetworkCommand {
         bundle: crate::x3dh::PreKeyBundle,
     },
     GetBundle(String),
+    StoreMessage {
+        recipient_did: String,
+        message: Vec<u8>,
+        relay: Multiaddr,
+    },
+    FetchMessages {
+        owner_did: String,
+        relay: Multiaddr,
+    },
 }
 
 // Events that the Network sends to the UI
@@ -48,6 +59,9 @@ pub enum NetworkEvent {
         did: String,
         bundle: crate::x3dh::PreKeyBundle,
     },
+    MessageStored,
+    MailboxMessages(Vec<Vec<u8>>),
+    MailboxError(String),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -63,6 +77,7 @@ pub struct RatatoskrBehavior {
     pub gossipsub: gossipsub::Behaviour,
     pub mdns: mdns::tokio::Behaviour,
     pub kademlia: kad::Behaviour<kad::store::MemoryStore>,
+    pub mailbox: request_response::Behaviour<MailboxCodec>,
 }
 
 pub async fn build_swarm(
@@ -111,10 +126,17 @@ pub async fn build_swarm(
             let store = kad::store::MemoryStore::new(key.public().to_peer_id());
             let kademlia = kad::Behaviour::new(key.public().to_peer_id(), store);
 
+            // Mailbox Request-Response Config
+            let mailbox = request_response::Behaviour::new(
+                std::iter::once((MailboxProtocol(), request_response::ProtocolSupport::Full)),
+                request_response::Config::default(),
+            );
+
             Ok(RatatoskrBehavior {
                 gossipsub,
                 mdns,
                 kademlia,
+                mailbox,
             })
         })?
         .build();
@@ -228,6 +250,25 @@ pub async fn run_network_node(
                         }).await;
                     }
                 },
+                SwarmEvent::Behaviour(RatatoskrBehaviorEvent::Mailbox(request_response::Event::Message {
+                    message: request_response::Message::Response { response, .. },
+                    ..
+                })) => {
+                    match response {
+                        crate::protocol::MailboxResponse::Stored => {
+                            let _ = event_sender.send(NetworkEvent::MessageStored).await;
+                        }
+                        crate::protocol::MailboxResponse::Messages(msgs) => {
+                            let _ = event_sender.send(NetworkEvent::MailboxMessages(msgs)).await;
+                        }
+                        crate::protocol::MailboxResponse::NotFound => {
+                            let _ = event_sender.send(NetworkEvent::MailboxMessages(vec![])).await;
+                        }
+                        crate::protocol::MailboxResponse::Error(e) => {
+                            let _ = event_sender.send(NetworkEvent::MailboxError(e)).await;
+                        }
+                    }
+                },
                 _ => {}
             },
 
@@ -302,6 +343,33 @@ pub async fn run_network_node(
                     println!("Network: Searching for PreKeyBundle for DID: {}", did);
                     let key = kad::RecordKey::new(&format!("bundle:{}", did));
                     swarm.behaviour_mut().kademlia.get_record(key);
+                },
+                Some(NetworkCommand::StoreMessage { recipient_did, message, relay }) => {
+                    println!("Network: Storing message for {} on relay {}", recipient_did, relay);
+                    // We need to resolve Multiaddr to PeerId to send request
+                    // For MVP, we assume the relay is already dialed or we dial it.
+                    // But `request_response` needs a PeerId.
+                    // Hack: We try to extract PeerId from Multiaddr (last component)
+                    if let Some(libp2p::multiaddr::Protocol::P2p(peer_id)) = relay.iter().last() {
+                         let req = crate::protocol::MailboxRequest::StoreMessage {
+                             recipient_did,
+                             message,
+                         };
+                         swarm.behaviour_mut().mailbox.send_request(&peer_id, req);
+                    } else {
+                        println!("Error: Relay address must include PeerId (/p2p/...)");
+                    }
+                },
+                Some(NetworkCommand::FetchMessages { owner_did, relay }) => {
+                    println!("Network: Fetching messages for {} from relay {}", owner_did, relay);
+                    if let Some(libp2p::multiaddr::Protocol::P2p(peer_id)) = relay.iter().last() {
+                         let req = crate::protocol::MailboxRequest::FetchMessages {
+                             owner_did,
+                         };
+                         swarm.behaviour_mut().mailbox.send_request(&peer_id, req);
+                    } else {
+                        println!("Error: Relay address must include PeerId (/p2p/...)");
+                    }
                 }
                 None => break, // Channel closed, exiting
             }

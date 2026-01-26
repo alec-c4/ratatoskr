@@ -439,6 +439,16 @@ pub fn run() {
                                 eprintln!("Failed to save bundle: {}", e);
                             }
                         }
+                        ratatoskr_core::network::NetworkEvent::MessageStored => {
+                            println!("UI: Message successfully stored in mailbox");
+                        }
+                        ratatoskr_core::network::NetworkEvent::MailboxMessages(msgs) => {
+                            println!("UI: Retrieved {} messages from mailbox", msgs.len());
+                            // TODO: Decrypt and save messages
+                        }
+                        ratatoskr_core::network::NetworkEvent::MailboxError(e) => {
+                            eprintln!("UI: Mailbox Error: {}", e);
+                        }
                     }
                 }
             });
