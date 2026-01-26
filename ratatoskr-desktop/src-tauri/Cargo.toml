@@ -28,4 +28,6 @@ libp2p = { version = "0.53", features = ["tokio", "gossipsub", "mdns", "noise", 
 hex = "0.4.3"
 uuid = { version = "1.19.0", features = ["v4"] }
 ed25519-dalek = "2.2.0"
+rand = "0.8"
+x25519-dalek = "2.0.1"
 

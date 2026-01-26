@@ -1,10 +1,12 @@
 use ed25519_dalek::VerifyingKey;
 use libp2p::{identity, Multiaddr};
+use rand::rngs::OsRng;
 use ratatoskr_core::crypto::encrypt_sos_signal;
 use ratatoskr_core::key_vault::KeyVault;
 use ratatoskr_core::models::{GeoLocation, SosPayload, SosType};
 use ratatoskr_core::network::{build_swarm, run_network_node, NetworkCommand};
 use ratatoskr_core::storage::Storage;
+use ratatoskr_core::x3dh::PreKeyBundle;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -12,6 +14,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{Emitter, Manager, State};
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
+use x25519_dalek::StaticSecret;
 
 // Application State: Stores the communication channel with the network thread
 struct AppState {
@@ -237,6 +240,44 @@ async fn get_identity(state: State<'_, AppState>) -> Result<Option<String>, Stri
     }
 }
 
+async fn publish_my_bundle(state: &AppState, vault: &KeyVault) -> Result<(), String> {
+    // 1. Generate keys
+    let spk_secret = StaticSecret::random_from_rng(OsRng);
+    let opk_secret = StaticSecret::random_from_rng(OsRng);
+
+    // 2. Save secrets to storage
+    state
+        .storage
+        .save_signed_prekey(&spk_secret)
+        .await
+        .map_err(|e| e.to_string())?;
+    state
+        .storage
+        .save_onetime_prekey(&opk_secret)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // 3. Create bundle
+    let bundle = PreKeyBundle::new(
+        &vault.dh_identity,
+        &vault.signing_key,
+        &spk_secret,
+        Some(&opk_secret),
+    );
+
+    // 4. Send to network
+    let sender = state.network_sender.lock().await;
+    sender
+        .send(NetworkCommand::PublishBundle {
+            did: vault.public_key_hex(),
+            bundle,
+        })
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
 #[tauri::command]
 async fn create_identity(
     state: State<'_, AppState>,
@@ -262,6 +303,9 @@ async fn create_identity(
         serde_json::to_string_pretty(&profile_data).unwrap(),
     )
     .map_err(|e| format!("Failed to save profile: {}", e))?;
+
+    // Publish bundle to network
+    publish_my_bundle(&state, &vault).await?;
 
     Ok((vault.public_key_hex(), mnemonic))
 }
@@ -289,6 +333,9 @@ async fn recover_identity(state: State<'_, AppState>, phrase: String) -> Result<
     vault
         .save_to_file(&state.identity_path)
         .map_err(|e| e.to_string())?;
+
+    // Publish bundle to network
+    publish_my_bundle(&state, &vault).await?;
 
     Ok(vault.public_key_hex())
 }
