@@ -19,7 +19,7 @@ Turning the app from a signal emitter into a user-aware client.
     - [x] Key management (Ed25519) & secure local storage (KeyVault).
     - [x] DID (Decentralized Identifier) generation.
     - [x] "First Run" User Experience (Registration).
-    - [ ] DHT (Kademlia) integration to find peers by ID, not just IP.
+    - [x] DHT (Kademlia) integration to find peers by ID and retrieve PreKeyBundles.
 - **Success Criteria:** User A can search for User B by their Public Key/DID and establish a direct connection.
 
 ## 💬 Milestone 3: Secure Conversations (v0.3.0)

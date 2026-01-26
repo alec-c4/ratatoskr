@@ -47,6 +47,8 @@
     - [x] Implement **Double Ratchet** session management (root key, chain keys).
     - [x] Store session states securely in SQLite (using `sqlcipher` or application-level encryption).
     - [x] Header Encryption (hide routing metadata).
+    - [x] **Bundle Exchange:** DHT-based PreKeyBundle publishing and retrieval.
+    - [x] **Direct Messaging:** GossipSub topic `ratatoskr-direct` for real-time E2EE chat.
 - [ ] **Inbox Zero Logic**
     - [ ] **Semantic Actions:**
         - [ ] Implement `ActionRequired` pinning logic.
