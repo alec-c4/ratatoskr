@@ -329,4 +329,54 @@ impl Storage {
         }
         Ok(())
     }
+
+    pub async fn save_bundle(
+        &self,
+        did: &str,
+        bundle: &crate::x3dh::PreKeyBundle,
+    ) -> Result<(), StorageError> {
+        let data = serde_json::to_vec(bundle).map_err(|e| {
+            StorageError::Db(sqlx::Error::Protocol(format!("Serialization error: {}", e)))
+        })?;
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        sqlx::query(
+            "INSERT INTO bundles (did, bundle_data, updated_at) VALUES (?, ?, ?)
+             ON CONFLICT(did) DO UPDATE SET bundle_data = excluded.bundle_data, updated_at = excluded.updated_at"
+        )
+        .bind(did)
+        .bind(data)
+        .bind(now)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn get_bundle(
+        &self,
+        did: &str,
+    ) -> Result<Option<crate::x3dh::PreKeyBundle>, StorageError> {
+        use sqlx::Row;
+        let rec = sqlx::query("SELECT bundle_data FROM bundles WHERE did = ?")
+            .bind(did)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        if let Some(row) = rec {
+            let data: Vec<u8> = row.get("bundle_data");
+            let bundle = serde_json::from_slice(&data).map_err(|e| {
+                StorageError::Db(sqlx::Error::Protocol(format!(
+                    "Deserialization error: {}",
+                    e
+                )))
+            })?;
+            Ok(Some(bundle))
+        } else {
+            Ok(None)
+        }
+    }
 }

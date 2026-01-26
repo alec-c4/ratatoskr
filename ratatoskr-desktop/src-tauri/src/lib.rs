@@ -433,6 +433,12 @@ pub fn run() {
                                 }
                             }
                         }
+                        ratatoskr_core::network::NetworkEvent::BundleFound { did, bundle } => {
+                            println!("UI: Storing PreKeyBundle for {}", did);
+                            if let Err(e) = storage_for_events.save_bundle(&did, &bundle).await {
+                                eprintln!("Failed to save bundle: {}", e);
+                            }
+                        }
                     }
                 }
             });

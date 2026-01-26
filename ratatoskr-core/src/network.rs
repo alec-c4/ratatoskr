@@ -24,6 +24,11 @@ pub enum NetworkCommand {
         sender_did: String,
         message: Box<crate::models::EncryptedMessage>,
     },
+    PublishBundle {
+        did: String,
+        bundle: crate::x3dh::PreKeyBundle,
+    },
+    GetBundle(String),
 }
 
 // Events that the Network sends to the UI
@@ -38,6 +43,10 @@ pub enum NetworkEvent {
     DirectMessageReceived {
         sender_did: String,
         message: Box<crate::models::EncryptedMessage>,
+    },
+    BundleFound {
+        did: String,
+        bundle: crate::x3dh::PreKeyBundle,
     },
 }
 
@@ -172,6 +181,22 @@ pub async fn run_network_node(
                 })) => {
                     println!("DHT: Found providers for key {:?}: {:?}", key, providers);
                 },
+                SwarmEvent::Behaviour(RatatoskrBehaviorEvent::Kademlia(kad::Event::OutboundQueryProgressed {
+                    result: kad::QueryResult::GetRecord(Ok(kad::GetRecordOk::FoundRecord(record))),
+                    ..
+                })) => {
+                    let key_str = String::from_utf8_lossy(record.record.key.as_ref());
+                    if key_str.starts_with("bundle:") {
+                        let did = key_str.trim_start_matches("bundle:").to_string();
+                        if let Ok(bundle) = serde_json::from_slice::<crate::x3dh::PreKeyBundle>(&record.record.value) {
+                             println!("DHT: Found PreKeyBundle for DID: {}", did);
+                             let _ = event_sender.send(NetworkEvent::BundleFound {
+                                 did,
+                                 bundle,
+                             }).await;
+                        }
+                    }
+                },
                 SwarmEvent::Behaviour(RatatoskrBehaviorEvent::Gossipsub(gossipsub::Event::Subscribed { peer_id, topic })) => {
                     println!("Peer {:?} subscribed to {:?}", peer_id, topic);
                 },
@@ -258,6 +283,25 @@ pub async fn run_network_node(
                             println!("Direct Message Publish Error: {:?}", e);
                         }
                     }
+                },
+                Some(NetworkCommand::PublishBundle { did, bundle }) => {
+                    println!("Network: Publishing PreKeyBundle for DID: {}", did);
+                    if let Ok(data) = serde_json::to_vec(&bundle) {
+                        let record = kad::Record {
+                            key: kad::RecordKey::new(&format!("bundle:{}", did)),
+                            value: data,
+                            publisher: None,
+                            expires: None,
+                        };
+                        if let Err(e) = swarm.behaviour_mut().kademlia.put_record(record, kad::Quorum::One) {
+                            println!("DHT PutRecord Error: {:?}", e);
+                        }
+                    }
+                },
+                Some(NetworkCommand::GetBundle(did)) => {
+                    println!("Network: Searching for PreKeyBundle for DID: {}", did);
+                    let key = kad::RecordKey::new(&format!("bundle:{}", did));
+                    swarm.behaviour_mut().kademlia.get_record(key);
                 }
                 None => break, // Channel closed, exiting
             }
