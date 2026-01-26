@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use x25519_dalek::PublicKey;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum SosType {
@@ -55,7 +56,7 @@ pub struct ChatMessage {
     pub recipient_did: String,
     pub msg_type: MessageType,
     pub status: MessageStatus,
-    pub content: Vec<u8>, // Encrypted blob
+    pub content: Vec<u8>, // Encrypted blob or Plaintext (depends on context, usually Plaintext in DB)
     pub timestamp: u64,
     pub ttl: Option<u64>,            // Optional expiry timestamp
     pub schema_id: String,           // For protocol extensibility
@@ -67,4 +68,32 @@ pub struct Message {
     pub sender: String,
     pub content: String,
     pub timestamp: u64,
+}
+
+// --- Protocol Models ---
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RatchetHeader {
+    pub dh_pub: PublicKey,
+    pub n: u32,  // Number of the message in the sending chain
+    pub pn: u32, // Number of the previous sending chain
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum EncryptedMessage {
+    /// Initial X3DH handshake message + first payload
+    X3dhInit {
+        sender_identity_key: PublicKey, // IK_A
+        ephemeral_key: PublicKey,       // EK_A
+        header: RatchetHeader,
+        ciphertext: Vec<u8>,         // Initial message
+        used_spk: PublicKey,         // The SPK used (so Bob knows which secret to pick)
+        used_opk: Option<PublicKey>, // The OPK used (if any)
+    },
+
+    /// Subsequent Double Ratchet message
+    Whisper {
+        header: RatchetHeader,
+        ciphertext: Vec<u8>,
+    },
 }

@@ -5,6 +5,7 @@ use rand::RngCore;
 use std::fs;
 use std::path::Path;
 use thiserror::Error;
+use x25519_dalek::StaticSecret;
 
 #[derive(Error, Debug)]
 pub enum VaultError {
@@ -17,7 +18,8 @@ pub enum VaultError {
 }
 
 pub struct KeyVault {
-    keypair: SigningKey,
+    pub signing_key: SigningKey,
+    pub dh_identity: StaticSecret,
 }
 
 impl KeyVault {
@@ -42,50 +44,77 @@ impl KeyVault {
         let mnemonic = Mnemonic::parse_in(Language::English, phrase)?;
         let seed = mnemonic.to_seed(""); // No password for seed
 
-        // We use the first 32 bytes of the seed as the Ed25519 secret key.
         // BIP-39 seeds are 64 bytes.
-        let mut secret_bytes = [0u8; 32];
-        secret_bytes.copy_from_slice(&seed[0..32]);
+        // First 32 bytes -> Ed25519 Signing Key
+        let mut signing_bytes = [0u8; 32];
+        signing_bytes.copy_from_slice(&seed[0..32]);
+        let signing_key = SigningKey::from_bytes(&signing_bytes);
 
-        let signing_key = SigningKey::from_bytes(&secret_bytes);
+        // Second 32 bytes -> X25519 Identity Key
+        let mut dh_bytes = [0u8; 32];
+        dh_bytes.copy_from_slice(&seed[32..64]);
+        let dh_identity = StaticSecret::from(dh_bytes);
+
         Ok(Self {
-            keypair: signing_key,
+            signing_key,
+            dh_identity,
         })
     }
 
     /// Legacy generation (random bytes, no mnemonic recovery possible unless saved)
     pub fn generate_random() -> Self {
-        let mut secret_bytes = [0u8; 32];
-        OsRng.fill_bytes(&mut secret_bytes);
-        let signing_key = SigningKey::from_bytes(&secret_bytes);
+        let mut signing_bytes = [0u8; 32];
+        OsRng.fill_bytes(&mut signing_bytes);
+        let signing_key = SigningKey::from_bytes(&signing_bytes);
+
+        let mut dh_bytes = [0u8; 32];
+        OsRng.fill_bytes(&mut dh_bytes);
+        let dh_identity = StaticSecret::from(dh_bytes);
+
         Self {
-            keypair: signing_key,
+            signing_key,
+            dh_identity,
         }
     }
 
     pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), VaultError> {
-        let bytes = self.keypair.to_bytes();
+        // We save 64 bytes: 32 bytes Ed25519 + 32 bytes X25519
+        let mut bytes = Vec::with_capacity(64);
+        bytes.extend_from_slice(&self.signing_key.to_bytes());
+        bytes.extend_from_slice(&self.dh_identity.to_bytes());
         fs::write(path, bytes)?;
         Ok(())
     }
 
     pub fn load_from_file<P: AsRef<Path>>(path: P) -> Result<Self, VaultError> {
         let bytes = fs::read(path)?;
-        let secret_bytes: [u8; 32] = bytes
-            .try_into()
-            .map_err(|_| VaultError::Crypto("Invalid key length".into()))?;
+        if bytes.len() != 64 {
+            return Err(VaultError::Crypto(
+                "Invalid key file length. Expected 64 bytes.".into(),
+            ));
+        }
 
-        let signing_key = SigningKey::from_bytes(&secret_bytes);
+        let signing_bytes: [u8; 32] = bytes[0..32].try_into().unwrap();
+        let dh_bytes: [u8; 32] = bytes[32..64].try_into().unwrap();
+
+        let signing_key = SigningKey::from_bytes(&signing_bytes);
+        let dh_identity = StaticSecret::from(dh_bytes);
+
         Ok(Self {
-            keypair: signing_key,
+            signing_key,
+            dh_identity,
         })
     }
 
     pub fn public_key_hex(&self) -> String {
-        hex::encode(self.keypair.verifying_key().as_bytes())
+        hex::encode(self.signing_key.verifying_key().as_bytes())
+    }
+
+    pub fn dh_public_key_hex(&self) -> String {
+        hex::encode(x25519_dalek::PublicKey::from(&self.dh_identity).as_bytes())
     }
 
     pub fn signing_key(&self) -> &SigningKey {
-        &self.keypair
+        &self.signing_key
     }
 }

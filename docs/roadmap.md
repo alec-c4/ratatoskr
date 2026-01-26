@@ -44,8 +44,8 @@
     - [x] Inbox Zero: TTL auto-deletion (backend + UI).
 - [ ] **Advanced Cryptography (Double Ratchet)**
     - [ ] Implement **X3DH** (Extended Triple Diffie-Hellman) for initial key exchange.
-    - [ ] Implement **Double Ratchet** session management (root key, chain keys).
-    - [ ] Store session states securely in SQLite (using `sqlcipher` or application-level encryption).
+    - [x] Implement **Double Ratchet** session management (root key, chain keys).
+    - [x] Store session states securely in SQLite (using `sqlcipher` or application-level encryption).
     - [ ] Header Encryption (hide routing metadata).
 - [ ] **Inbox Zero Logic**
     - [ ] **Semantic Actions:**
