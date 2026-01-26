@@ -4,6 +4,8 @@ use libp2p::swarm::SwarmEvent;
 use libp2p::{
     gossipsub, kad, mdns, noise, swarm::NetworkBehaviour, yamux, Multiaddr, Swarm, SwarmBuilder,
 };
+use serde::{Deserialize, Serialize};
+use serde_json;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
@@ -17,6 +19,11 @@ pub enum NetworkCommand {
     Dial(Multiaddr),        // Connect to a specific peer manually
     StartProviding(String), // Announce our ID to the DHT
     FindPeer(String),       // Find peer address by ID
+    SendDirectMessage {
+        recipient_did: String,
+        sender_did: String,
+        message: Box<crate::models::EncryptedMessage>,
+    },
 }
 
 // Events that the Network sends to the UI
@@ -28,6 +35,17 @@ pub enum NetworkEvent {
         sender: String,
     },
     PeerCountUpdated(usize),
+    DirectMessageReceived {
+        sender_did: String,
+        message: Box<crate::models::EncryptedMessage>,
+    },
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct DirectMessagePayload {
+    pub recipient_did: String,
+    pub sender_did: String,
+    pub message: crate::models::EncryptedMessage,
 }
 
 // Network behavior
@@ -98,12 +116,17 @@ pub async fn build_swarm(
 // Main loop of the network node
 pub async fn run_network_node(
     mut swarm: Swarm<RatatoskrBehavior>,
+    local_did: String,
     mut command_receiver: mpsc::Receiver<NetworkCommand>,
     event_sender: mpsc::Sender<NetworkEvent>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Subscribe to the SOS channel
     let sos_topic = gossipsub::IdentTopic::new("ratatoskr-sos");
     swarm.behaviour_mut().gossipsub.subscribe(&sos_topic)?;
+
+    // Subscribe to Direct Messages channel
+    let dm_topic = gossipsub::IdentTopic::new("ratatoskr-direct");
+    swarm.behaviour_mut().gossipsub.subscribe(&dm_topic)?;
 
     // Set Kademlia to Server mode (auto-update routing table)
     swarm
@@ -155,18 +178,30 @@ pub async fn run_network_node(
                 SwarmEvent::Behaviour(RatatoskrBehaviorEvent::Gossipsub(
                     gossipsub::Event::Message {
                         propagation_source: peer_id,
-                        message_id: id,
+                        message_id: _id,
                         message,
                     },
                 )) => {
                     println!("🚨 RECEIVED MESSAGE from {:?}", peer_id);
-                    println!("   Message ID: {}", id);
+                    println!("   Topic: {}", message.topic);
 
-                    let _ = event_sender.send(NetworkEvent::MessageReceived {
-                        topic: message.topic.to_string(),
-                        payload: message.data,
-                        sender: peer_id.to_string(),
-                    }).await;
+                    if message.topic.as_str() == "ratatoskr-direct" {
+                        if let Ok(payload) = serde_json::from_slice::<DirectMessagePayload>(&message.data) {
+                            if payload.recipient_did == local_did {
+                                println!("   Direct Message for ME from {}", payload.sender_did);
+                                let _ = event_sender.send(NetworkEvent::DirectMessageReceived {
+                                    sender_did: payload.sender_did,
+                                    message: Box::new(payload.message),
+                                }).await;
+                            }
+                        }
+                    } else {
+                        let _ = event_sender.send(NetworkEvent::MessageReceived {
+                            topic: message.topic.to_string(),
+                            payload: message.data,
+                            sender: peer_id.to_string(),
+                        }).await;
+                    }
                 },
                 _ => {}
             },
@@ -210,6 +245,19 @@ pub async fn run_network_node(
                     let key = kad::RecordKey::new(&key_str);
                     println!("DHT: Searching for key: {}", key_str);
                     swarm.behaviour_mut().kademlia.get_providers(key);
+                },
+                Some(NetworkCommand::SendDirectMessage { recipient_did, sender_did, message }) => {
+                    println!("Network: Sending direct message to {}", recipient_did);
+                    let payload = DirectMessagePayload {
+                        recipient_did,
+                        sender_did,
+                        message: *message,
+                    };
+                    if let Ok(data) = serde_json::to_vec(&payload) {
+                        if let Err(e) = swarm.behaviour_mut().gossipsub.publish(dm_topic.clone(), data) {
+                            println!("Direct Message Publish Error: {:?}", e);
+                        }
+                    }
                 }
                 None => break, // Channel closed, exiting
             }
