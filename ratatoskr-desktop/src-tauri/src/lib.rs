@@ -1,3 +1,4 @@
+use ed25519_dalek::VerifyingKey;
 use libp2p::{identity, Multiaddr};
 use ratatoskr_core::crypto::encrypt_sos_signal;
 use ratatoskr_core::key_vault::KeyVault;
@@ -77,17 +78,48 @@ async fn send_message(
     // 1. Encrypt message using MessagingService
     let service = ratatoskr_core::messaging::MessagingService::new(&state.storage, &vault);
 
-    // TODO: Support bundle exchange. For now, this only works if session already exists
-    // or if we had a way to get the bundle.
-    let encrypted_msg = service
+    // Try to load bundle and keys if session doesn't exist
+    let bundle_opt = state
+        .storage
+        .get_bundle(&recipient_did)
+        .await
+        .ok()
+        .flatten();
+    let vk_opt = if let Ok(bytes) = hex::decode(&recipient_did) {
+        if bytes.len() == 32 {
+            let mut arr = [0u8; 32];
+            arr.copy_from_slice(&bytes);
+            VerifyingKey::from_bytes(&arr).ok()
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let encrypted_result = service
         .encrypt_message(
             &recipient_did,
-            None, // recipient_ed25519_key (None if session exists)
-            None, // recipient_bundle (None if session exists)
+            vk_opt.as_ref(),
+            bundle_opt.as_ref(),
             content.as_bytes(),
         )
-        .await
-        .map_err(|e| format!("Encryption failed: {}", e))?;
+        .await;
+
+    let encrypted_msg = match encrypted_result {
+        Ok(msg) => msg,
+        Err(e) => {
+            // If encryption failed, it might be due to missing session/bundle.
+            // Trigger discovery and fail gracefully.
+            let sender: tokio::sync::MutexGuard<mpsc::Sender<NetworkCommand>> =
+                state.network_sender.lock().await;
+            let _ = sender
+                .send(NetworkCommand::GetBundle(recipient_did.clone()))
+                .await;
+
+            return Err(format!("Secure session not established. Discovery initiated. Please retry in a few seconds. (Error: {})", e));
+        }
+    };
 
     // 2. Save plaintext to local DB for UI
     let msg = ChatMessage {
@@ -152,6 +184,12 @@ async fn add_contact(state: State<'_, AppState>, did: String, alias: String) -> 
         .add_contact(&did, &alias)
         .await
         .map_err(|e| e.to_string())?;
+
+    // Try to find the peer's bundle immediately
+    let sender: tokio::sync::MutexGuard<mpsc::Sender<NetworkCommand>> =
+        state.network_sender.lock().await;
+    let _ = sender.send(NetworkCommand::GetBundle(did)).await;
+
     Ok(())
 }
 
