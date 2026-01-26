@@ -19,6 +19,9 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let sos_topic = gossipsub::IdentTopic::new("ratatoskr-sos");
     swarm.behaviour_mut().gossipsub.subscribe(&sos_topic)?;
 
+    let dm_topic = gossipsub::IdentTopic::new("ratatoskr-direct");
+    swarm.behaviour_mut().gossipsub.subscribe(&dm_topic)?;
+
     // Set Server Mode for DHT
     swarm
         .behaviour_mut()
