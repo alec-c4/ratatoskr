@@ -307,6 +307,13 @@ async fn create_identity(
     // Publish bundle to network
     publish_my_bundle(&state, &vault).await?;
 
+    // Update Network Thread Identity
+    let sender = state.network_sender.lock().await;
+    sender
+        .send(NetworkCommand::SetIdentity(vault.public_key_hex()))
+        .await
+        .map_err(|e| e.to_string())?;
+
     Ok((vault.public_key_hex(), mnemonic))
 }
 
@@ -337,6 +344,13 @@ async fn recover_identity(state: State<'_, AppState>, phrase: String) -> Result<
     // Publish bundle to network
     publish_my_bundle(&state, &vault).await?;
 
+    // Update Network Thread Identity
+    let sender = state.network_sender.lock().await;
+    sender
+        .send(NetworkCommand::SetIdentity(vault.public_key_hex()))
+        .await
+        .map_err(|e| e.to_string())?;
+
     Ok(vault.public_key_hex())
 }
 
@@ -353,6 +367,11 @@ async fn delete_identity(state: State<'_, AppState>) -> Result<(), String> {
             err_msg
         })?;
         println!("DEBUG: Identity deleted successfully.");
+        // Reset Network Identity
+        let sender = state.network_sender.lock().await;
+        let _ = sender
+            .send(NetworkCommand::SetIdentity("anonymous".to_string()))
+            .await;
     } else {
         println!("DEBUG: File does not exist, nothing to delete.");
     }

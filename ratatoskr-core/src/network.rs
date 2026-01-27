@@ -31,6 +31,7 @@ pub enum NetworkCommand {
         bundle: crate::x3dh::PreKeyBundle,
     },
     GetBundle(String),
+    SetIdentity(String),
     StoreMessage {
         recipient_did: String,
         message: Vec<u8>,
@@ -147,7 +148,7 @@ pub async fn build_swarm(
 // Main loop of the network node
 pub async fn run_network_node(
     mut swarm: Swarm<RatatoskrBehavior>,
-    local_did: String,
+    mut local_did: String,
     mut command_receiver: mpsc::Receiver<NetworkCommand>,
     event_sender: mpsc::Sender<NetworkEvent>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -351,6 +352,10 @@ pub async fn run_network_node(
                     println!("Network: Searching for PreKeyBundle for DID: {}", did);
                     let key = kad::RecordKey::new(&format!("bundle:{}", did));
                     swarm.behaviour_mut().kademlia.get_record(key);
+                },
+                Some(NetworkCommand::SetIdentity(did)) => {
+                    println!("Network: Identity updated to {}", did);
+                    local_did = did;
                 },
                 Some(NetworkCommand::StoreMessage { recipient_did, message, relay }) => {
                     println!("Network: Storing message for {} on relay {}", recipient_did, relay);
