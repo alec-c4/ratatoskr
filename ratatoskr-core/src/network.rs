@@ -233,14 +233,22 @@ pub async fn run_network_node(
                     println!("   Topic: {}", message.topic);
 
                     if message.topic.as_str() == "ratatoskr-direct" {
-                        if let Ok(payload) = serde_json::from_slice::<DirectMessagePayload>(&message.data) {
-                            if payload.recipient_did == local_did {
-                                println!("   Direct Message for ME from {}", payload.sender_did);
-                                let _ = event_sender.send(NetworkEvent::DirectMessageReceived {
-                                    sender_did: payload.sender_did,
-                                    message: Box::new(payload.message),
-                                }).await;
-                            }
+                        println!("   Processing Direct Message...");
+                        match serde_json::from_slice::<DirectMessagePayload>(&message.data) {
+                            Ok(payload) => {
+                                println!("   Payload Recipient: {}", payload.recipient_did);
+                                println!("   Local DID:         {}", local_did);
+                                if payload.recipient_did == local_did {
+                                    println!("   ✅ MATCH! Dispatching to UI...");
+                                    let _ = event_sender.send(NetworkEvent::DirectMessageReceived {
+                                        sender_did: payload.sender_did,
+                                        message: Box::new(payload.message),
+                                    }).await;
+                                } else {
+                                    println!("   ❌ Mismatch. Ignoring.");
+                                }
+                            },
+                            Err(e) => println!("   ❌ Failed to deserialize payload: {}", e),
                         }
                     } else {
                         let _ = event_sender.send(NetworkEvent::MessageReceived {
