@@ -68,3 +68,15 @@ jobs:
       run: |
         npm run check
         npx eslint .
+
+  ci:
+    name: CI
+    if: always()
+    needs: [check]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require the existing CI jobs to succeed
+        env:
+          JOB_0_RESULT: ${{ needs.check.result }}
+        run: |
+          test "$JOB_0_RESULT" = success
